@@ -132,31 +132,32 @@ handleCommands msg =
 
 -- Handle a channel command
 channelCmd :: String -> String -> String -> Lojbot ()
-channelCmd from to cmd = do
+channelCmd from to msg = do
   chans <- config confChans
-  mapM_ (runCmd from to cmd . chanPrefix) $ filter ((==to) . chanName) chans
+  mapM_ (runCmd from to msg . chanPrefix) $ filter ((==to) . chanName) chans
 
 -- Private message command
 pmCmd :: String -> String -> String -> Lojbot ()
-pmCmd from to cmd = runCmd from to cmd ""
+pmCmd from to msg = runCmd from to msg ""
 
 -- Run a command
 runCmd :: String -> String -> String -> String -> Lojbot ()
-runCmd from to cmd p
-    | p `isPrefixOf` cmd =
-  case matchRegex cmdRegex (drop (length p) cmd) of
-    Just [r] -> let (cmd',args) = break (==' ' ) r
-                in mapM_ (run (drop 1 args)) $ cmds cmd'
-    _        -> return ()
-    | otherwise = return ()
-  where run args cmd = evalStateT (cmdProc cmd args) (from,to)
-        cmdRegex = mkRegex "^([a-zA-Z'_]+.*)"
+runCmd from to msg p
+    | p `isPrefixOf` msg = maybe (return ()) try match
+    | otherwise          = return ()
+    where
+    match = fmap head . matchRegex cmdRegex $ command
+    command = drop (length p) msg
+    cmdRegex = mkRegex "^([a-zA-Z'_]+.*)"
+    try cmd = let (name,args) = break (==' ') cmd
+              in mapM_ (run args) $ cmds name
+    run args cmd = evalStateT (cmdProc cmd args) (from,to)
 
 ------------------------------------------------------------------------------
 -- Bot commands
 
 -- Main command list
-commands = [cmdEcho,cmdHelp,cmdValsi]
+commands = [cmdEcho,cmdHelp,cmdValsi,cmdSelma'o]
 
 -- Command to display help
 cmdHelp :: Cmd
@@ -178,6 +179,14 @@ cmdEcho = Cmd
   { cmdName = ["echo"]
   , cmdDesc = "echo: <text>\nechos what you say"
   , cmdProc = reply . TextReply }
+
+cmdSelma'o :: Cmd
+cmdSelma'o = Cmd
+  { cmdName = ["selma'o","s"]
+  , cmdDesc = "lookup a selma'o"
+  , cmdProc = proc } where
+    proc s = do
+      return ()
 
 -- Valsi lookup
 cmdValsi :: Cmd
