@@ -150,10 +150,6 @@ pmCmd from to cmd = do
 ------------------------------------------------------------------------------
 -- Bot commands
 
--- Filter all commands matching a name.
-cmds :: String -> [Cmd]
-cmds name = filter (any (==name) . cmdName) commands
-
 -- Main command list
 commands = [echo]
 
@@ -163,6 +159,10 @@ echo = Cmd
   { cmdName = ["echo"]
   , cmdDesc = "echo: <text>\nechos what you say"
   , cmdProc = reply }
+
+-- Filter all commands matching a name.
+cmds :: String -> [Cmd]
+cmds name = filter (any (==name) . cmdName) commands
 
 -- Replies to a command according to whether it's a channel or user.
 reply :: String -> LojbotCmd ()
