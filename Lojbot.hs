@@ -13,6 +13,10 @@ import System.IO
 import System.Posix
 import Text.Regex
 
+------------------------------------------------------------------------------
+-- Main start-up actions
+
+-- Main for executable
 main :: IO ()
 main = do
   args <- getArgs
@@ -23,11 +27,13 @@ main = do
                    _ -> error "unable to parse config file"
     _ -> error "expected <config file>"
 
+-- Start up for inside ghci
 start :: Config -> IO ()
 start config = do
   installHandler sigPIPE Ignore Nothing
   evalStateT runBot (defState { lojbotConfig = config })
-  
+
+-- Main Lojbot action
 runBot :: Lojbot ()
 runBot = do
   openLog
@@ -35,6 +41,10 @@ runBot = do
   connectToIRC
   readIRCLines
 
+------------------------------------------------------------------------------
+-- Initialisation
+
+-- Open the log file or use stdout
 openLog :: Lojbot ()
 openLog = do
   logFile <- config confLogFile
@@ -44,6 +54,7 @@ openLog = do
   liftIO $ hSetBuffering handle NoBuffering
   modify $ \state -> state { lojbotLog = handle }
 
+-- Open the jbovlaste database
 openJbovlaste :: Lojbot ()
 openJbovlaste = do
   path <- config confJbov
@@ -52,6 +63,7 @@ openJbovlaste = do
   modify $ \state -> state { lojbotJboDB = db }
   logLn "done."
 
+-- Attempt to open a connection to the IRC server
 connectToIRC :: Lojbot ()
 connectToIRC = do
   host <- config confServer
@@ -62,12 +74,17 @@ connectToIRC = do
   modify $ \state -> state { lojbotIRC = handle }
   logLn "connected on socket."
 
+------------------------------------------------------------------------------
+-- Message handling
+ 
+-- Extract lines and pass them to the handler
 readIRCLines :: Lojbot ()
 readIRCLines = do
   handle <- gets lojbotIRC
   lines <- lines `fmap` liftIO (hGetContents handle)
   mapM_ lineHandler lines
 
+-- Attempt to decode a valid IRC message, logging unhandled ones
 lineHandler :: String -> Lojbot ()
 lineHandler msg =
     case decode (msg++"\n") of
@@ -75,12 +92,16 @@ lineHandler msg =
                      handleMsg msg
       Nothing  -> logLn $ "unhandled message: <- " ++ show msg
 
+-- Handle an IRC commands or nickserv messages, to be acted upon.
 handleMsg :: Message -> Lojbot ()
 handleMsg msg =
     case nickservMsg msg of
       Just msg -> handleNickserv msg
       Nothing  -> handleCommands msg
 
+-- Nickserv actions:
+-- 1) Reply to nickserv with identify command
+-- 2) Join channels when bot is identified
 handleNickserv :: String -> Lojbot ()
 handleNickserv msg 
     | "You are now identified" `isPrefixOf` msg = joinChans
@@ -88,6 +109,15 @@ handleNickserv msg
         do password <- config confNickPass
            irc $ privmsg "nickserv" ("identify " ++ password)
 
+-- Maybe a nickserv message.
+nickservMsg :: Message -> Maybe String
+nickservMsg msg =
+    case msg of
+      Message (Just (NickName "NickServ" _ _)) "NOTICE" [nick',msg]
+          -> Just msg
+      _   -> Nothing
+
+-- Handle possible commands according to channel rules or privmsg.
 handleCommands :: Message -> Lojbot ()
 handleCommands msg =
     case msg of
@@ -96,11 +126,13 @@ handleCommands msg =
           | otherwise           -> pmCmd from to (concat cmd)
       _ -> return ()
 
+-- Handle a channel command.
 channelCmd :: String -> String -> String -> Lojbot ()
 channelCmd from to cmd = do
   chans <- config confChans
   mapM_ (command from to cmd . chanPrefix) $ filter ((==to) . chanName) chans
 
+-- Run a channel command.
 command from to cmd p 
     | p `isPrefixOf` cmd = do
   case matchRegex cmdRegex cmd of
@@ -115,44 +147,24 @@ pmCmd :: String -> String -> String -> Lojbot ()
 pmCmd from to cmd = do
   return ()
 
+------------------------------------------------------------------------------
+-- Bot commands
+
+-- Filter all commands matching a name.
 cmds :: String -> [Cmd]
 cmds name = filter (any (==name) . cmdName) commands
 
+-- Main command list
 commands = [echo]
 
+-- Command to echo what a user says.
 echo :: Cmd
 echo = Cmd
   { cmdName = ["echo"]
   , cmdDesc = "echo: <text>\nechos what you say"
   , cmdProc = reply }
 
-joinChans :: Lojbot ()
-joinChans = do
-  chans <- config confChans
-  mapM_ (irc . joinChan . chanName) chans
-
-log :: String -> Lojbot ()
-log str = do
-  handle <- gets lojbotLog
-  liftIO $ hPutStr handle str
-
-logLn :: String -> Lojbot ()
-logLn str = do
-  handle <- gets lojbotLog
-  liftIO $ hPutStrLn handle str
-
-irc :: Message -> Lojbot ()
-irc msg = do
-  handle <- gets lojbotIRC
-  liftIO $ hPutStrLn handle (showMessage msg)
-
-nickservMsg :: Message -> Maybe String
-nickservMsg msg =
-    case msg of
-      Message (Just (NickName "NickServ" _ _)) "NOTICE" [nick',msg]
-          -> Just msg
-      _   -> Nothing
-
+-- Replies to a command according to whether it's a channel or user.
 reply :: String -> LojbotCmd ()
 reply msg = do
   (from,to) <- get
@@ -160,23 +172,58 @@ reply msg = do
     ('#':_) -> lift $ irc $ privmsg to msg
     _       -> lift $ irc $ privmsg from msg
 
+-- A command data type.
 data Cmd = Cmd
-    { cmdName :: [String]
-    , cmdDesc :: String
-    , cmdProc :: String -> LojbotCmd () }
+    { cmdName :: [String]               -- Name and aliases.
+    , cmdDesc :: String                 -- A description for the help file.
+    , cmdProc :: String -> LojbotCmd () -- The process to be run.
+    }
 
 type LojbotCmd = StateT CmdSt Lojbot
+type CmdSt = (String  -- Who is using the command?
+             ,String) -- Who was it sent to?
 
-type CmdSt = (String,String)
+------------------------------------------------------------------------------
+-- Generic IRC actions
+
+-- Join all channels in configuration.
+joinChans :: Lojbot ()
+joinChans = do
+  chans <- config confChans
+  mapM_ (irc . joinChan . chanName) chans
+-- Send an IRC message to the server.
+irc :: Message -> Lojbot ()
+irc msg = do
+  handle <- gets lojbotIRC
+  liftIO $ hPutStrLn handle (showMessage msg)
+
+------------------------------------------------------------------------------
+-- Logging actions
+
+-- Log a string.
+log :: String -> Lojbot ()
+log str = do
+  handle <- gets lojbotLog
+  liftIO $ hPutStr handle str
+
+-- Log a line.
+logLn :: String -> Lojbot ()
+logLn str = do 
+  handle <- gets lojbotLog
+  liftIO $ hPutStrLn handle str
+
+------------------------------------------------------------------------------
+-- Bot state types
 
 type Lojbot = StateT LojbotSt IO
          
 data LojbotSt = LojbotSt 
-    { lojbotConfig :: Config
-    , lojbotIRC    :: Handle
-    , lojbotJboDB  :: JboDB 
-    , lojbotLog    :: Handle }
+    { lojbotConfig :: Config   -- The bot's configuration.
+    , lojbotIRC    :: Handle   -- IRC connection.
+    , lojbotJboDB  :: JboDB    -- Jbovlaste database.
+    , lojbotLog    :: Handle } -- Logging handle.
 
+-- Default state
 defState :: LojbotSt
 defState = LojbotSt
    { lojbotConfig = undefined
@@ -184,18 +231,22 @@ defState = LojbotSt
    , lojbotJboDB  = undefined 
    , lojbotLog    = stdout }
 
-data Config = Config
-    { confNickName :: String
-    , confAltNicks :: [String]
-    , confNickPass :: String
-    , confServer   :: String
-    , confPort     :: Integer
-    , confChans    :: [ChanAssign]
-    , confAdmins   :: [String] 
-    , confJbov     :: FilePath
-    , confLogFile  :: LogH }
-              deriving (Read,Show)
+------------------------------------------------------------------------------
+-- Configuration types
 
+data Config = Config
+    { confNickName :: String        -- Main nickname to use.
+    , confAltNicks :: [String]      -- Alternate nicks to use.
+    , confNickPass :: String        -- Nickserv password.
+    , confServer   :: String        -- Server host.
+    , confPort     :: Integer       -- Server port.
+    , confChans    :: [ChanAssign]  -- Channels to join, and options.
+    , confAdmins   :: [String]      -- Admin usernames.
+    , confJbov     :: FilePath      -- Jbovlaste database path.
+    , confLogFile  :: LogH }        -- How to log.
+  deriving (Read,Show)
+
+-- Default configuration
 defConfig :: Config
 defConfig = Config
     { confNickName = "lojbot"
@@ -208,14 +259,17 @@ defConfig = Config
     , confJbov     = "jbovlaste.db"
     , confLogFile  = LogStdout }
 
+-- Simple utilities to access config entries.
 config :: (Config -> a) -> Lojbot a
 config = gets . (. lojbotConfig)
 
+-- A channel assignment
 data ChanAssign = ChanAssign
-    { chanName     :: String
-    , chanCanReply :: Bool
-    , chanPrefix   :: String }
-                  deriving (Read,Show)
+    { chanName     :: String   -- Channel IRC name
+    , chanCanReply :: Bool     -- Can the bot reply in this channel?
+    , chanPrefix   :: String } -- What prefix should be looked for?
+  deriving (Read,Show)
 
-data LogH = LogStdout | LogF FilePath
-          deriving (Read,Show)
+data LogH = LogStdout      -- Just use stdout to log
+          | LogF FilePath  -- Use this file path to log
+  deriving (Read,Show)
