@@ -92,9 +92,9 @@ readIRCLines = do
 lineHandler :: String -> Lojbot ()
 lineHandler msg =
     case decode (msg++"\n") of
-      Just msg -> do logLn $ "<- " ++ show msg
+      Just msg -> do logLn $ "<- " ++ showMessage msg
                      handleMsg msg
-      Nothing  -> logLn $ "unhandled message: <- " ++ show msg
+      Nothing  -> logLn $ "unhandled message: <- " ++ msg
 
 -- Handle an IRC commands or nickserv messages, to be acted upon
 handleMsg :: Message -> Lojbot ()
@@ -138,18 +138,18 @@ channelCmd from to msg = do
 
 -- Private message command
 pmCmd :: String -> String -> String -> Lojbot ()
-pmCmd from to msg = runCmd from to msg ""
+pmCmd from to msg = runCmd from to msg []
 
 -- Run a command
-runCmd :: String -> String -> String -> String -> Lojbot ()
+runCmd :: String -> String -> String -> [String] -> Lojbot ()
 runCmd from to msg p
-    | p `isPrefixOf` msg = maybe (return ()) try match
-    | otherwise          = return ()
+    | null p || any (flip isPrefixOf msg) p = maybe (return ()) try match
+    | otherwise = return ()
     where
     match = fmap head . matchRegex cmdRegex $ command
-    command = drop (length p) msg
+    command = drop (list 0 (const 1) p) msg
     cmdRegex = mkRegex "^([a-zA-Z'_]+.*)"
-    try cmd = let (name,args) = break (==' ') cmd
+    try cmd = let (name,args) = id *** drop 1 $ break (==' ') cmd
               in mapM_ (run args) $ cmds name
     run args cmd = evalStateT (cmdProc cmd args) (from,to)
 
@@ -157,7 +157,13 @@ runCmd from to msg p
 -- Bot commands
 
 -- Main command list
-commands = [cmdEcho,cmdHelp,cmdValsi,cmdSelma'o]
+commands = [cmdCoi,cmdEcho,cmdHelp,cmdValsi,cmdSelma'o]
+
+cmdCoi :: Cmd
+cmdCoi = Cmd
+  { cmdName = ["coi"]
+  , cmdDesc = "a simple bot ping. replies with coi"
+  , cmdProc = const $ reply $ TextReply "coi" }
 
 -- Command to display help
 cmdHelp :: Cmd
@@ -167,8 +173,9 @@ cmdHelp = Cmd
   , cmdProc = proc } where
     proc cmd = do
       if (isJust $ matchRegex (mkRegex "^[a-zA-Z'_]+$") cmd)
-         then reply $ TextReply "TODO"
-         else reply $ TextReply "TODO"
+         then reply $ TextReply $ maybe "" showCmd $ find (any (==cmd) . cmdName) commands
+         else reply $ TextReply $ "commands: " ++ (commas $ map (alias . cmdName) commands)
+    showCmd cmd = alias (cmdName cmd) ++ ": " ++ cmdDesc cmd
 
 showCommands :: [String]
 showCommands = map (show . cmdName) commands
@@ -180,15 +187,20 @@ cmdEcho = Cmd
   , cmdDesc = "echo: <text>\nechos what you say"
   , cmdProc = reply . TextReply }
 
+-- Lookup cmavo of a specific selma'o
 cmdSelma'o :: Cmd
 cmdSelma'o = Cmd
   { cmdName = ["selma'o","s"]
-  , cmdDesc = "lookup a selma'o"
+  , cmdDesc = "lookup cmavo of a given selma'o"
   , cmdProc = proc } where
     proc s = do
-      return ()
+      db <- lift $ gets lojbotJboDB
+      case filterSelma'o db s of
+        [] -> return ()
+        cs -> reply $ TextReply $ commas $ map cmavo cs
+            where cmavo c = valsiWord c ++ " " ++ parens (slashes $ valsiGloss c)
 
--- Valsi lookup
+-- valsi lookup
 cmdValsi :: Cmd
 cmdValsi = Cmd
   { cmdName = ["valsi","v","w"]
@@ -200,7 +212,7 @@ cmdValsi = Cmd
         [] -> case rafsis valsi' of
                 [] -> reply $ TextReply $ "\"" ++ valsi' ++ "\" not found, or invalid"
                 ws -> lookupLujvo valsi' ws
-        ws -> replies $ map ValsiReply $ ws
+        ws -> return () -- reply $ map ValsiReply $ ws
 
 -- Lookup the parts of a lujvo and display it.
 lookupLujvo :: String -> [String] -> LojbotCmd ()
@@ -208,9 +220,8 @@ lookupLujvo w rs = do
   db <- lift $ gets lojbotJboDB
   Right (_,good) <- liftIO $ translate w
   let selrafsi = map (findSelrafsi db) rs
-  reply $ TextReply $ "lujvo {" ++ w ++ "}" ++ rafsis rs
-                       ++ selrafs selrafsi ++ selgloss selrafsi
-                       ++ ": " ++ trans good
+  reply $ TextReply $ "lujvo {" ++ w ++ "}" ++ rafsis rs ++ selrafs selrafsi
+                      ++ selgloss selrafsi ++ ": " ++ trans good
   where rafsis = (", with rafsis "++) . braces . commas
         selrafs = (", selrafsi "++) . braces . commas . catMaybes . map (fmap valsiWord)
         selgloss = (' ':) . parens . commas . catMaybes . map (fmap (slashes . valsiGloss))
@@ -222,10 +233,10 @@ lookupLujvo w rs = do
 cmds :: String -> [Cmd]
 cmds name = filter (any (==name) . cmdName) commands
 
--- Replies to a command
-replies :: [CmdReply] -> LojbotCmd ()
-replies [] = return ()
-replies (first:rest) = do
+-- Set more results for a command
+setMore :: [CmdReply] -> LojbotCmd ()
+setMore [] = return ()
+setMore (first:rest) = do
   reply first
 
 reply :: CmdReply -> LojbotCmd ()
@@ -244,7 +255,6 @@ partitioned n = join . longest . splits . normalise where
     longest = last . takeWhile ((<=n) . length . unwords . fst)
     splits = liftM2 zip inits tails
     normalise = concatMap (\a -> filter (not . null) [take n a, drop n a]) . words
-    list n f [] = n ; list n f xs = f xs
 
 -- Who do we send the message to?
 replyTo :: (String,String) -> String
@@ -342,7 +352,7 @@ defConfig = Config
     , confAltNicks = ["lojbot_","lojbot__"]
     , confServer   = "127.0.0.1"
     , confPort     = 6667
-    , confChans    = [ChanAssign "#lojbot" False "@"]
+    , confChans    = [ChanAssign "#lojbot" False ["?","@"]]
     , confAdmins   = ["chrisdone"] 
     , confJbov     = "jbovlaste.db"
     , confLogFile  = LogStdout }
@@ -353,9 +363,9 @@ config = gets . (. lojbotConfig)
 
 -- A channel assignment
 data ChanAssign = ChanAssign
-    { chanName     :: String   -- Channel IRC name
-    , chanCanReply :: Bool     -- Can the bot reply in this channel?
-    , chanPrefix   :: String } -- What prefix should be looked for?
+    { chanName     :: String     -- Channel IRC name
+    , chanCanReply :: Bool       -- Can the bot reply in this channel?
+    , chanPrefix   :: [String] } -- What prefix should be looked for?
   deriving (Read,Show)
 
 data LogH = LogStdout      -- Just use stdout to log
@@ -367,4 +377,5 @@ braces s = "{" ++ s ++ "}"
 parens s = "(" ++ s ++ ")"
 commas = intercalate ", "
 slashes = intercalate "/"
-list nil cons v = if v == [] then nil else cons v
+list nil c [] = nil; list _ c v = c v
+alias (x:xs) = x ++ list "" ((" "++) . parens . commas) xs
