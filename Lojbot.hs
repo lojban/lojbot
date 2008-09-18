@@ -3,6 +3,7 @@ module Main where
 import Control.Arrow
 import Control.Concurrent
 import Control.Monad.State
+import Data.Char
 import Data.Function
 import Data.List
 import Data.Maybe
@@ -158,7 +159,7 @@ runCmd from to msg p
 
 -- Main command list
 commands = [cmdValsi,cmdDef,cmdTrans,cmdGrammar
-           ,cmdSelma'o,cmdCoi,cmdMore,cmdHelp]
+           ,cmdSelma'o,cmdRef,cmdCoi,cmdMore,cmdHelp]
 
 -- Check some lojban grammar
 cmdGrammar :: Cmd
@@ -228,17 +229,32 @@ lookupLujvo w rs = do
         selgloss = (' ':) . parens . commas . catMaybes . map (fmap (slashes . valsiGloss))
         trans = fromMaybe "" . fmap head . matchRegex (mkRegex "/([^/]+)/")
 
+-- Describe a selma'o and link to the reference grammar
+cmdRef :: Cmd
+cmdRef = Cmd { cmdName = ["ref"]
+             , cmdDesc = "describe a selma'o and link to the reference grammar"
+             , cmdProc = proc } where
+    proc selma'o = do
+      info <- liftIO $ selma'oInfo selma'o
+      db <- lift $ gets lojbotJboDB
+      case info of
+        Right inf -> reply (unwords $ lines inf)
+        Left e    -> case valsi db selma'o of 
+                       []    -> reply e
+                       (x:_) -> proc (fromMaybe "" $ valsiSelma'o x)
+
 -- gismu lookup via selma'o
+cmdSelma'o :: Cmd
 cmdSelma'o = Cmd { cmdName = ["selma'o","s"]
                  , cmdDesc = "list cmavo of a selma'o"
                  , cmdProc = proc } where
     proc selma'o = do
       db <- lift $ gets lojbotJboDB
-      case filterSelma'o db selma'o of
+      case filterSelma'o db (lower selma'o) of
         [] -> return ()
         xs -> replies $ split' (commas list) ++ (map showValsi xs)
             where list = map showCmavo xs
-                  showCmavo w = valsiWord w ++ " " ++ parens (slashes $ valsiGloss w)
+                  showCmavo w = "\2" ++ valsiWord w ++ "\2: " ++ (slashes $ valsiGloss w)
 
 -- Command to display help
 cmdHelp :: Cmd
@@ -429,3 +445,5 @@ list nil c [] = nil; list _ c v = c v
 alias (x:xs) = x ++ list "" ((" "++) . parens . commas) xs
 update a = unionBy ((==) `on` fst) [a]
 bool a b p = if p then a else b
+lower = map toLower
+trim = words . unwords
