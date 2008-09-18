@@ -159,16 +159,16 @@ runCmd from to msg p
 -- Main command list
 commands = [cmdValsi,cmdDef,cmdSelma'o,cmdCoi,cmdMore,cmdHelp]
 
--- lookup valsi(s) according to a definition substring
+-- Search for valsi(s) by definition
 cmdDef :: Cmd
 cmdDef = Cmd { cmdName = ["definition","d"]
-             , cmdDesc = "lookup valsi by definition"
+             , cmdDesc = "search for valsi(s) by definition"
              , cmdProc = proc } where
     proc string = do
       db <- lift $ gets lojbotJboDB
       case defSub db string of
-        [] -> reply $ show string ++ " not found"
-        xs -> replies $ map showValsi xs
+        []     -> reply $ show string ++ " not found in any definitions"
+        valsis -> replies $ map showValsi valsis
 
 -- simple bot ping
 cmdCoi :: Cmd
