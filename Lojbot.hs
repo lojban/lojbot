@@ -157,7 +157,32 @@ runCmd from to msg p
 -- Bot commands
 
 -- Main command list
-commands = [cmdValsi,cmdDef,cmdSelma'o,cmdCoi,cmdMore,cmdHelp]
+commands = [cmdValsi,cmdDef,cmdTrans,cmdGrammar
+           ,cmdSelma'o,cmdCoi,cmdMore,cmdHelp]
+
+-- Check some lojban grammar
+cmdGrammar :: Cmd
+cmdGrammar = Cmd { cmdName = ["grammar","jg","g"]
+                 , cmdDesc = "check/show grammar with jbofihe -ie"
+                 , cmdProc = proc } where
+    proc text = do
+      res <- liftIO $ grammar text
+      case res of
+        Right (err,out) | out /= "" -> reply out
+                        | otherwise -> reply "parse error (TODO: proper error)"
+        Left e -> reply e
+
+-- Translate some lojban
+cmdTrans :: Cmd
+cmdTrans = Cmd { cmdName = ["translate","jt","t"]
+               , cmdDesc = "translate some lojban with jbofihe -x"
+               , cmdProc = proc } where
+    proc text = do
+      res <- liftIO $ translate text
+      case res of
+        Right (err,out) | out /= "" -> reply out
+                        | otherwise -> reply "parse error (TODO: proper error)"
+        Left e -> reply e
 
 -- Search for valsi(s) by definition
 cmdDef :: Cmd
