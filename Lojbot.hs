@@ -157,8 +157,21 @@ runCmd from to msg p
 -- Bot commands
 
 -- Main command list
-commands = [cmdValsi,cmdSelma'o,cmdCoi,cmdMore,cmdHelp]
+commands = [cmdValsi,cmdDef,cmdSelma'o,cmdCoi,cmdMore,cmdHelp]
 
+-- lookup valsi(s) according to a definition substring
+cmdDef :: Cmd
+cmdDef = Cmd { cmdName = ["definition","d"]
+             , cmdDesc = "lookup valsi by definition"
+             , cmdProc = proc } where
+    proc string = do
+      db <- lift $ gets lojbotJboDB
+      case defSub db string of
+        [] -> reply $ show string ++ " not found"
+        xs -> replies $ map showValsi xs
+
+-- simple bot ping
+cmdCoi :: Cmd
 cmdCoi = Cmd { cmdName = ["coi"]
              , cmdDesc = "list cmavo of a selma'o"
              , cmdProc = const $ reply "coi" }
