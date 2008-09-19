@@ -242,7 +242,7 @@ cmdRef = Cmd { cmdName = ["ref"]
         Left e    -> case valsi db selma'o of 
                        []    -> reply e
                        (x:_) -> proc (fromMaybe "" $ valsiSelma'o x)
-
+ 
 -- gismu lookup via selma'o
 cmdSelma'o :: Cmd
 cmdSelma'o = Cmd { cmdName = ["selma'o","s"]
