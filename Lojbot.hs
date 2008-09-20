@@ -1,5 +1,6 @@
 module Main where
 
+import qualified Codec.Binary.UTF8.String as UTF8
 import Control.Arrow
 import Control.Concurrent
 import Control.Monad.State
@@ -10,6 +11,7 @@ import Data.Maybe
 import Language.Lojban.Jbovlaste
 import Language.Lojban.Lujvo
 import Language.Lojban.Util
+import Language.Lojban.CLL
 import Network
 import Network.IRC hiding (command)
 import Prelude hiding (log)
@@ -87,8 +89,8 @@ connectToIRC = do
 readIRCLines :: Lojbot ()
 readIRCLines = do
   handle <- gets lojbotIRC
-  lines <- lines `fmap` liftIO (hGetContents handle)
-  mapM_ lineHandler lines
+  lines <- (lines) `fmap` liftIO (hGetContents handle)
+  mapM_ (lineHandler) lines
 
 -- Attempt to decode a valid IRC message, logging unhandled ones
 lineHandler :: String -> Lojbot ()
@@ -159,7 +161,20 @@ runCmd from to msg p
 
 -- Main command list
 commands = [cmdValsi,cmdDef,cmdTrans,cmdGrammar
-           ,cmdSelma'o,cmdRef,cmdCoi,cmdMore,cmdHelp]
+           ,cmdSelma'o,cmdRef,cmdCLL,cmdCoi,cmdMore,cmdHelp]
+
+cmdCLL :: Cmd
+cmdCLL = Cmd { cmdName = ["cll"]
+             , cmdDesc = "lookup something in the lojban reference grammar"
+             , cmdProc = proc } where
+    proc text = do
+      res <- if null text' then return Nothing else liftIO $ cll text'
+      case res of
+        Just res -> replies $ map showRes res
+        Nothing  -> reply $ "no results for \"" ++ text ++ "\""
+      where showRes (url,desc) = url ++ ": " ++ desc
+            text' = UTF8.encodeString $ filter ok $ UTF8.decodeString text
+            ok c = isLetter c || isSpace c || c == '\'' || c == '"'
 
 -- Check some lojban grammar
 cmdGrammar :: Cmd
@@ -192,7 +207,7 @@ cmdDef = Cmd { cmdName = ["definition","d"]
              , cmdProc = proc } where
     proc string = do
       db <- lift $ gets lojbotJboDB
-      case defSub db string of
+      case defSub db string ++ defWildCard db string of
         []     -> reply $ show string ++ " not found in any definitions"
         valsis -> replies $ map showValsi valsis
 
@@ -212,8 +227,8 @@ cmdValsi = Cmd
       db <- lift $ gets lojbotJboDB
       case valsi db valsi' of
         [] -> case rafsis valsi' of
-                [] -> reply $ "\"" ++ valsi' ++ "\" not found, or invalid"
-                ws -> lookupLujvo valsi' ws
+                ws | ws /= [] && length valsi' > 5 -> lookupLujvo valsi' ws
+                _ -> reply $ "\"" ++ valsi' ++ "\" not found, or invalid"
         ws -> replies $ map showValsi ws
 
 -- Lookup the parts of a lujvo and display it.
@@ -284,12 +299,12 @@ cmdMore = Cmd { cmdName = ["more"]
                    in do mapM_ reply (few++[end])
                          setMore later
 
-------------------------------------------------------------------------------
+------------------------------------------------------------------------------ 
 
 more :: [String] -> String
 more later = " .. " ++ show (length later) 
-             ++ " more results: " ++ preview where
-    preview = (take 7 $ head later) ++ " .."
+             ++ " more result" ++ s where
+    s = if length later > 1 then "s" else ""
 
 replies :: [String] -> LojbotCmd ()
 replies (x:xs) | null xs   = reply x
