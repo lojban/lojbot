@@ -154,7 +154,7 @@ runCmd from to msg p
     cmdRegex = mkRegex "^([a-zA-Z'_]+.*)"
     try cmd = let (name,args) = id *** drop 1 $ break (==' ') cmd
               in mapM_ (run args) $ cmds name
-    run args cmd = evalStateT (cmdProc cmd args) (from,to)
+    run args cmd = evalStateT (cmdProc cmd (trim args)) (from,to)
 
 ------------------------------------------------------------------------------
 -- Bot commands
@@ -240,11 +240,12 @@ cmdValsi = Cmd
     proc valsi' = do
       db <- lift $ gets lojbotJboDB
       case valsi db valsi' of
-        [] -> case rafsis valsi' of
-                ws | ws /= [] && length valsi' > 5 -> lookupLujvo valsi' ws
+        [] -> case rafsis (valsi'') of
+                ws | ws /= [] && length valsi'' > 5 -> lookupLujvo valsi'' ws
                 _ -> reply $ "\"" ++ valsi' ++ "\" not found, or invalid"
         ws -> replies $ map showValsi ws
-
+      where valsi'' = fixClusters valsi'
+ 
 -- Lookup the parts of a lujvo and display it.
 lookupLujvo :: String -> [String] -> LojbotCmd ()
 lookupLujvo w rs = do
@@ -324,6 +325,7 @@ replies :: [String] -> LojbotCmd ()
 replies (x:xs) | null xs   = reply x
                | otherwise = do reply $ x ++ more xs
                                 setMore xs
+replies [] = return ()
 
 setMore :: [String] -> LojbotCmd ()
 setMore xs = do
@@ -475,4 +477,4 @@ alias (x:xs) = x ++ list "" ((" "++) . parens . commas) xs
 update a = unionBy ((==) `on` fst) [a]
 bool a b p = if p then a else b
 lower = map toLower
-trim = words . unwords
+trim = unwords . words
