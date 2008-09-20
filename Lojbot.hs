@@ -146,7 +146,7 @@ setupCmd from to msg = do
 runCmd :: String -> String -> String -> [String] -> Lojbot ()
 runCmd from to msg p
     | any (flip isPrefixOf msg) p = maybe (return ()) try (match 1)
---    | pm = maybe (return ()) try (match 0)
+    | pm = maybe (return ()) try (match 0)
     | otherwise = return ()
     where
     match n = fmap head . matchRegex cmdRegex $ drop n msg
@@ -161,8 +161,22 @@ runCmd from to msg p
 
 -- Main command list
 commands = [cmdValsi,cmdDef,cmdTrans,cmdGrammar
-           ,cmdSelma'o,cmdRef,cmdCLL,cmdCoi,cmdMore,cmdHelp]
+           ,cmdSelma'o,cmdRef,cmdCLL,cmdLujvo
+           ,cmdCoi,cmdMore,cmdHelp]
 
+-- Create a lujvo with vlatai
+cmdLujvo :: Cmd
+cmdLujvo = Cmd { cmdName = ["lujvo"]
+               , cmdDesc = "construct lujvos from selrafsis and rate them"
+               , cmdProc = proc } where
+    proc text = do
+      res <- liftIO $ lujvoAndRate (words text)
+      case res of
+        Left e -> reply e
+        Right xs -> reply $ commas $ map showLujvo xs
+      where showLujvo (r,w) = w ++ " (" ++ show r ++ ")"
+
+-- Lookup from the CLL
 cmdCLL :: Cmd
 cmdCLL = Cmd { cmdName = ["cll"]
              , cmdDesc = "lookup something in the lojban reference grammar"
@@ -185,7 +199,7 @@ cmdGrammar = Cmd { cmdName = ["grammar","jg","g"]
       res <- liftIO $ grammar text
       case res of
         Right (err,out) | out /= "" -> reply out
-                        | otherwise -> reply "parse error (TODO: proper error)"
+                        | otherwise -> reply "parse error"
         Left e -> reply e
 
 -- Translate some lojban
@@ -197,7 +211,7 @@ cmdTrans = Cmd { cmdName = ["translate","jt","t"]
       res <- liftIO $ translate text
       case res of
         Right (err,out) | out /= "" -> reply out
-                        | otherwise -> reply "parse error (TODO: proper error)"
+                        | otherwise -> reply "parse error"
         Left e -> reply e
 
 -- Search for valsi(s) by definition
@@ -431,7 +445,7 @@ defConfig = Config
     , confAltNicks = ["lojbot_","lojbot__"]
     , confServer   = "127.0.0.1"
     , confPort     = 6667
-    , confChans    = [ChanAssign "#lojbot" True ["@"]]
+    , confChans    = [ChanAssign "#lojbot" True ["@","?"]]
     , confAdmins   = ["chrisdone"] 
     , confJbov     = "jbovlaste.db"
     , confLogFile  = LogStdout }
