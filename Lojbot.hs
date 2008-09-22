@@ -47,6 +47,7 @@ runBot = do
   openLog
   openJbovlaste
   connectToIRC
+  startMsgBuffer
   readIRCLines
 
 ------------------------------------------------------------------------------
@@ -79,8 +80,25 @@ connectToIRC = do
   log $ "Connecting to " ++ host ++ ":" ++ show port ++ "... "
   handle <- liftIO $ connectTo host portNo
   liftIO $ hSetBuffering handle LineBuffering
-  modify $ \state -> state { lojbotIRC = handle }
   logLn "connected on socket."
+  modify $ \state -> state { lojbotIRC = handle }
+
+startMsgBuffer :: Lojbot ()
+startMsgBuffer = do
+  chan <- liftIO newChan
+  modify $ \state -> state { lojbotBuffer = chan }
+  state <- get
+  liftIO $ do forkIO $ evalStateT msgBuffer state; return ()
+
+msgBuffer :: Lojbot ()
+msgBuffer = do
+  handle <- gets lojbotIRC
+  buffer <- gets lojbotBuffer
+  lines <- liftIO $ getChanContents buffer
+  forM_ lines $ \msg -> do
+    liftIO $ hPutStrLn handle (showMessage msg)
+    logLn $ "-> " ++ (showMessage msg)
+    liftIO $ threadDelay 500000
 
 ------------------------------------------------------------------------------
 -- Message handling
@@ -153,7 +171,7 @@ runCmd from to msg p
     pm = head to /= '#'
     cmdRegex = mkRegex "^([a-zA-Z'_]+.*)"
     try cmd = let (name,args) = id *** drop 1 $ break (==' ') cmd
-              in mapM_ (run args) $ cmds name
+              in mapM_ (run args) $ cmds (lower name)
     run args cmd = evalStateT (cmdProc cmd (trim args)) (from,to)
 
 ------------------------------------------------------------------------------
@@ -184,8 +202,8 @@ cmdCLL = Cmd { cmdName = ["cll"]
     proc text = do
       res <- if null text' then return Nothing else liftIO $ cll text'
       case res of
-        Just res -> replies $ map showRes res
-        Nothing  -> reply $ "no results for \"" ++ text ++ "\""
+        Just res | res /= [] -> replies $ map showRes res
+        _ -> reply $ "no results for \"" ++ text ++ "\""
       where showRes (url,desc) = url ++ ": " ++ desc
             text' = UTF8.encodeString $ filter ok $ UTF8.decodeString text
             ok c = isLetter c || isSpace c || c == '\'' || c == '"'
@@ -240,7 +258,7 @@ cmdValsi = Cmd
     proc valsi' = do
       db <- lift $ gets lojbotJboDB
       case valsi db valsi' of
-        [] -> case rafsis (valsi'') of
+        [] -> case rafsis valsi'' of
                 ws | ws /= [] && length valsi'' > 5 -> lookupLujvo valsi'' ws
                 _ -> reply $ "\"" ++ valsi' ++ "\" not found, or invalid"
         ws -> replies $ map showValsi ws
@@ -342,7 +360,7 @@ reply msg = do
 cmds :: String -> [Cmd]
 cmds name = filter (any (==name) . cmdName) commands
 
-split' = split 390
+split' = split 300
 
 -- Partition a string into separate ones that will fit into IRC messages
 split :: Int -> String -> [String]
@@ -380,10 +398,8 @@ joinChans = do
 -- Send an IRC message to the server
 irc :: Message -> Lojbot ()
 irc msg = do
-  handle <- gets lojbotIRC
-  liftIO $ hPutStrLn handle (showMessage msg)
-  logLn $ "-> " ++ (showMessage msg)
-  liftIO $ threadDelay 500000
+  buffer <- gets lojbotBuffer
+  liftIO $ do forkIO $ writeChan buffer msg; return ()
 
 ------------------------------------------------------------------------------
 -- Logging actions
@@ -406,11 +422,12 @@ logLn str = do
 type Lojbot = StateT LojbotSt IO
          
 data LojbotSt = LojbotSt 
-    { lojbotConfig :: Config    -- The bot's configuration
-    , lojbotIRC    :: Handle    -- IRC connection
-    , lojbotJboDB  :: JboDB     -- Jbovlaste database
-    , lojbotLog    :: Handle    -- Logging handle
-    , lojbotMore   :: [Mores] } -- More messages assoc list
+    { lojbotConfig :: Config       -- The bot's configuration
+    , lojbotIRC    :: Handle       -- IRC connection
+    , lojbotBuffer :: Chan Message -- Buffer for sending messages
+    , lojbotJboDB  :: JboDB        -- Jbovlaste database
+    , lojbotLog    :: Handle       -- Logging handle
+    , lojbotMore   :: [Mores] }    -- More messages assoc list
 
 type Mores = (String    -- Nick/channel
              ,[String]) -- The reply
@@ -420,6 +437,7 @@ defState :: LojbotSt
 defState = LojbotSt
    { lojbotConfig = undefined
    , lojbotIRC    = undefined
+   , lojbotBuffer = undefined
    , lojbotJboDB  = undefined 
    , lojbotLog    = stdout 
    , lojbotMore   = [] }
