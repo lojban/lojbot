@@ -179,8 +179,20 @@ runCmd from to msg p
 
 -- Main command list
 commands = [cmdValsi,cmdDef,cmdTrans,cmdGrammar
-           ,cmdSelma'o,cmdRef,cmdCLL,cmdLujvo
+           ,cmdSelma'o,cmdRef,cmdCLL,cmdLujvo,cmdSelrafsi
            ,cmdCoi,cmdMore,cmdHelp]
+
+-- Find all lujvo with a selrafsi
+cmdSelrafsi :: Cmd
+cmdSelrafsi = Cmd { cmdName = ["selrafsi","sr"]
+                  , cmdDesc = "find all lujvo with given selrafsi"
+                  , cmdProc = proc } where
+    proc sr = do
+      db <- lift $ gets lojbotJboDB
+      case lujvosSelrafsis db (words sr) of
+        [] -> reply "no lujvo found with the given selrafsi"
+        xs -> replies $ commas (map showLujvo xs) : map showValsi xs
+    showLujvo v = valsiWord v ++ list "" ((" "++) . parens . head) (valsiGloss v)
 
 -- Create a lujvo with vlatai
 cmdLujvo :: Cmd
@@ -204,10 +216,10 @@ cmdCLL = Cmd { cmdName = ["cll"]
       case res of
         Just res | res /= [] -> replies $ map showRes res
         _ -> reply $ "no results for \"" ++ text ++ "\""
-      where showRes (url,desc) = url ++ ": " ++ desc
+      where showRes (url,desc) = url ++ " : " ++ desc
             text' = UTF8.encodeString $ filter ok $ UTF8.decodeString text
             ok c = isLetter c || isSpace c || c == '\'' || c == '"'
-
+ 
 -- Check some lojban grammar
 cmdGrammar :: Cmd
 cmdGrammar = Cmd { cmdName = ["grammar","jg","g"]
