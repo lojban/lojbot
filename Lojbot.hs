@@ -12,6 +12,7 @@ import Language.Lojban.Jbovlaste
 import Language.Lojban.Lujvo
 import Language.Lojban.Util
 import Language.Lojban.CLL
+import Language.Lojban.Jbobau
 import Network
 import Network.IRC hiding (command)
 import Prelude hiding (log)
@@ -46,6 +47,7 @@ runBot :: Lojbot ()
 runBot = do
   openLog
   openJbovlaste
+  openJbobau
   connectToIRC
   startMsgBuffer
   readIRCLines
@@ -62,6 +64,15 @@ openLog = do
               LogF file -> liftIO $ openFile file AppendMode
   liftIO $ hSetBuffering handle NoBuffering
   modify $ \state -> state { lojbotLog = handle }
+
+-- Open jbobau generator
+openJbobau :: Lojbot ()
+openJbobau = do
+  path <- config confTrainDat
+  log $ "Reading jbobau training data from " ++ path ++ "... "
+  Right jbo <- liftIO $ newJbobau path
+  modify $ \state -> state { lojbotJbobau = jbo }
+  logLn "done."
 
 -- Open the jbovlaste database
 openJbovlaste :: Lojbot ()
@@ -180,7 +191,29 @@ runCmd from to msg p
 -- Main command list
 commands = [cmdValsi,cmdDef,cmdTrans,cmdGrammar
            ,cmdSelma'o,cmdRef,cmdCLL,cmdLujvo,cmdSelrafsi
-           ,cmdCoi,cmdMore,cmdHelp]
+           ,cmdJbobau,cmdJbobau',cmdCoi,cmdMore,cmdHelp]
+
+-- Reply with some random grammatical lojbanic text and provide a translation
+cmdJbobau' :: Cmd
+cmdJbobau' = Cmd { cmdName = ["speak"]
+                 , cmdDesc = "reply with some random grammatical lojbanic text (and translate it--never works)"
+                 , cmdProc = proc } where
+    proc rel = do
+      jbo <- lift $ gets lojbotJbobau
+      line <- liftIO $ jbobauLine jbo
+      reply line
+      (cmdProc cmdTrans) line
+
+-- Reply with some random grammatical lojbanic text
+cmdJbobau :: Cmd
+cmdJbobau = Cmd { cmdName = ["jbobau","tavla"]
+                , cmdDesc = "reply with some random grammatical lojbanic text \
+                            \(uses #lojban IRC logs for training data)"
+                , cmdProc = proc } where
+    proc rel = do
+      jbo <- lift $ gets lojbotJbobau
+      line <- liftIO $ jbobauLine jbo
+      reply line
 
 -- Find all lujvo with a selrafsi
 cmdSelrafsi :: Cmd
@@ -267,23 +300,37 @@ cmdValsi = Cmd
   { cmdName = ["valsi","v","w"]
   , cmdDesc = "lookup a gismu/cmavo/lujvo/fu'ivla"
   , cmdProc = proc } where
-    proc valsi' = do
-      db <- lift $ gets lojbotJboDB
-      case valsi db valsi' of
-        [] -> case rafsis valsi'' of
-                ws | ws /= [] && length valsi'' > 5 -> lookupLujvo valsi'' ws
-                _ -> reply $ "\"" ++ valsi' ++ "\" not found, or invalid"
-        ws -> replies $ map showValsi ws
-      where valsi'' = fixClusters valsi'
- 
--- Lookup the parts of a lujvo and display it.
-lookupLujvo :: String -> [String] -> LojbotCmd ()
-lookupLujvo w rs = do
+    proc terms = do
+      let valsi = map lower $ words terms
+      valsi' <- join `fmap` mapM lookupValsi valsi
+      let valsiUniq = valsi \\ (map fst valsi')
+      lujvo <- catMaybes `fmap` mapM lookupLujvo valsiUniq
+      let results  = lujvo ++ valsi'
+          results' = map (\v -> filter ((==v) . fst) results) valsi
+      replies $ map snd $ join $ results'
+-- TODO handle no results
+
+-- Lookup a lookup a gismu/cmavo/extant-lujvo/fu'ivla
+lookupValsi :: String -> LojbotCmd [(String,String)]
+lookupValsi w = do
   db <- lift $ gets lojbotJboDB
-  Right (_,good) <- liftIO $ translate w
-  let selrafsi = map (findSelrafsi db) rs
-  reply $ "lujvo {" ++ w ++ "}" ++ rafsis rs ++ selrafs selrafsi
-            ++ selgloss selrafsi ++ ": " ++ trans good
+  return $ map (((,) w) . showValsi) $ valsi db w
+
+-- Lookup the parts of a lujvo and display it.
+lookupLujvo :: String -> LojbotCmd (Maybe (String,String))
+lookupLujvo w =
+    case rafsis (fixClusters w) of
+      [] -> return Nothing
+      rs -> do db <- lift $ gets lojbotJboDB
+               Right (_,good) <- liftIO $ translate w
+               let selrafsi = map (findSelrafsi db) rs
+               return $ Just $ (w,showLujvo w rs selrafsi good)
+
+-- Show a nonce lujvo.
+showLujvo :: String -> [String] -> [Maybe JboValsi] -> String -> String
+showLujvo w rs selrafsi good = 
+    "lujvo {" ++ w ++ "}" ++ rafsis rs ++ selrafs selrafsi
+    ++ selgloss selrafsi ++ ": " ++ trans good
   where rafsis = (", with rafsis "++) . braces . commas
         selrafs = (", selrafsi "++) . braces . commas . catMaybes . map (fmap valsiWord)
         selgloss = (' ':) . parens . commas . catMaybes . map (fmap (slashes . valsiGloss))
@@ -439,7 +486,9 @@ data LojbotSt = LojbotSt
     , lojbotBuffer :: Chan Message -- Buffer for sending messages
     , lojbotJboDB  :: JboDB        -- Jbovlaste database
     , lojbotLog    :: Handle       -- Logging handle
-    , lojbotMore   :: [Mores] }    -- More messages assoc list
+    , lojbotMore   :: [Mores]      -- More messages assoc list
+    , lojbotJbobau :: Jbobau       -- Random lojbanic text generator
+    }
 
 type Mores = (String    -- Nick/channel
              ,[String]) -- The reply
@@ -452,7 +501,9 @@ defState = LojbotSt
    , lojbotBuffer = undefined
    , lojbotJboDB  = undefined 
    , lojbotLog    = stdout 
-   , lojbotMore   = [] }
+   , lojbotMore   = [] 
+   , lojbotJbobau = undefined
+   }
 
 ------------------------------------------------------------------------------
 -- Configuration types
@@ -466,8 +517,9 @@ data Config = Config
     , confChans    :: [ChanAssign]  -- Channels to join, and options
     , confAdmins   :: [String]      -- Admin usernames
     , confJbov     :: FilePath      -- Jbovlaste database path
-    , confLogFile  :: LogH }        -- How to log
-  deriving (Read,Show)
+    , confLogFile  :: LogH          -- How to log
+    , confTrainDat :: FilePath      -- Training data path
+    } deriving (Read,Show)
 
 -- Default configuration
 defConfig :: Config
@@ -480,7 +532,9 @@ defConfig = Config
     , confChans    = [ChanAssign "#lojbot" True ["@","?"]]
     , confAdmins   = ["chrisdone"] 
     , confJbov     = "jbovlaste.db"
-    , confLogFile  = LogStdout }
+    , confLogFile  = LogStdout 
+    , confTrainDat = "lojban.log"
+    }
 
 -- Simple utilities to access config entries
 config :: (Config -> a) -> Lojbot a
