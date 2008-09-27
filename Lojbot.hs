@@ -307,8 +307,7 @@ cmdValsi = Cmd
       lujvo <- catMaybes `fmap` mapM lookupLujvo valsiUniq
       let results  = lujvo ++ valsi'
           results' = map (\v -> filter ((==v) . fst) results) valsi
-      replies $ map snd $ join $ results'
--- TODO handle no results
+      list (reply $ "no results for: " ++ terms) replies (map snd $ join $ results')
 
 -- Lookup a lookup a gismu/cmavo/extant-lujvo/fu'ivla
 lookupValsi :: String -> LojbotCmd [(String,String)]
@@ -319,12 +318,13 @@ lookupValsi w = do
 -- Lookup the parts of a lujvo and display it.
 lookupLujvo :: String -> LojbotCmd (Maybe (String,String))
 lookupLujvo w =
-    case rafsis (fixClusters w) of
+    case rafsis w' of
       [] -> return Nothing
       rs -> do db <- lift $ gets lojbotJboDB
-               Right (_,good) <- liftIO $ translate w
+               Right (_,good) <- liftIO $ translate w'
                let selrafsi = map (findSelrafsi db) rs
-               return $ Just $ (w,showLujvo w rs selrafsi good)
+               return $ Just $ (w,showLujvo w' rs selrafsi good)
+    where w' = fixClusters w
 
 -- Show a nonce lujvo.
 showLujvo :: String -> [String] -> [Maybe JboValsi] -> String -> String
