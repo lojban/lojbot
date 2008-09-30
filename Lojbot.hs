@@ -134,7 +134,7 @@ handleMsg :: Message -> Lojbot ()
 handleMsg msg =
     case msg of
       Message _ "PING" ps -> irc $ Message Nothing "PONG" ps
-      _ -> maybe (handleCommands msg) handleNickserv (nickservMsg msg)
+      _ -> maybe (handlePMs msg) handleNickserv (nickservMsg msg)
 
 -- Nickserv actions:
 -- 1) Reply to nickserv with identify command
@@ -155,21 +155,22 @@ nickservMsg msg =
           -> Just msg
       _   -> Nothing
 
--- Handle possible commands according to channel rules or privmsg
-handleCommands :: Message -> Lojbot ()
-handleCommands msg =
+-- Handle private messages according to channel rules or privmsg
+handlePMs :: Message -> Lojbot ()
+handlePMs msg =
     case msg of
       Message (Just (NickName from _ _)) "PRIVMSG" (to:cmd)
-              -> setupCmd from to (concat cmd)
+              -> do setupAction from to (concat cmd)
+                    setupCmd from to (concat cmd)
       _ -> return ()
 
 -- Handle a command
 setupCmd :: String -> String -> String -> Lojbot ()
 setupCmd from to msg = do
   chans <- config confChans
-  mapM_ (runCmd from to msg . chanPrefix) $ check chans
-      where check | head to /= '#' = id
-                  | otherwise      = filter ((==to) . chanName) 
+  case filter ((==to) . chanName) chans of
+    (chan:_) -> runCmd from to msg (chanPrefix chan)
+    []       -> runCmd from to msg (join $ map chanPrefix chans)
 
 -- Run a command
 runCmd :: String -> String -> String -> [String] -> Lojbot ()
@@ -185,13 +186,37 @@ runCmd from to msg p
               in mapM_ (run args) $ cmds (lower name)
     run args cmd = evalStateT (cmdProc cmd (trim args)) (from,to)
 
+setupAction :: String -> String -> String -> Lojbot ()
+setupAction from to cmd = mapM_ (\a -> evalStateT (a cmd) (from,to)) actions
+
+------------------------------------------------------------------------------
+-- Bot hooks
+
+-- Actions to perform on private messages
+
+actions = [actDoi]
+
+actDoi :: String -> LojbotAction ()
+actDoi text = do
+  nick <- lift $ config confNickName
+  prenu <- gets fst
+  if (isCOI nick text) then cmdProc cmdJbobau "" else return ()
+
+isCOI :: String -> String -> Bool
+isCOI prenu = isJust . find match . tails . words where
+    match (coi:to:_) = any (==coi) coiDoi && lower (filter isLetter to) == prenu
+    match _          = False
+
+coiDoi = ["be'e","co'o","coi","fe'o","fi'i","je'e","ju'i","ke'o","ki'e"
+         ,"mi'e","mu'o","nu'e","pe'u","re'i","ta'a","vi'o","doi"]
+
 ------------------------------------------------------------------------------
 -- Bot commands
 
 -- Main command list
 commands = [cmdValsi,cmdDef,cmdTrans,cmdGrammar
            ,cmdSelma'o,cmdRef,cmdCLL,cmdLujvo,cmdSelrafsi
-           ,cmdJbobau,cmdJbobau',cmdCoi,cmdMore,cmdHelp]
+           ,cmdJbobau,cmdJbobau',cmdMore,cmdHelp]
 
 -- Reply with some random grammatical lojbanic text and provide a translation
 cmdJbobau' :: Cmd
@@ -202,7 +227,7 @@ cmdJbobau' = Cmd { cmdName = ["speak"]
       jbo <- lift $ gets lojbotJbobau
       line <- liftIO $ jbobauLine jbo
       reply line
-      (cmdProc cmdTrans) line
+      cmdProc cmdTrans line
 
 -- Reply with some random grammatical lojbanic text
 cmdJbobau :: Cmd
@@ -251,7 +276,7 @@ cmdCLL = Cmd { cmdName = ["cll"]
         _ -> reply $ "no results for \"" ++ text ++ "\""
       where showRes (url,desc) = url ++ " : " ++ desc
             text' = UTF8.encodeString $ filter ok $ UTF8.decodeString text
-            ok c = isLetter c || isSpace c || c == '\'' || c == '"'
+            ok c = isLetter c || isSpace c || c == '\'' || c == '"' || c == '-'
  
 -- Check some lojban grammar
 cmdGrammar :: Cmd
@@ -288,12 +313,6 @@ cmdDef = Cmd { cmdName = ["definition","d"]
         []     -> reply $ show string ++ " not found in any definitions"
         valsis -> replies $ map showValsi valsis
 
--- simple bot ping
-cmdCoi :: Cmd
-cmdCoi = Cmd { cmdName = ["coi"]
-             , cmdDesc = "list cmavo of a selma'o"
-             , cmdProc = const $ reply "coi" }
-
 -- valsi lookup
 cmdValsi :: Cmd
 cmdValsi = Cmd
@@ -301,7 +320,7 @@ cmdValsi = Cmd
   , cmdDesc = "lookup a gismu/cmavo/lujvo/fu'ivla"
   , cmdProc = proc } where
     proc terms = do
-      let valsi = map lower $ words terms
+      let valsi = lojban $ words terms
       valsi' <- join `fmap` mapM lookupValsi valsi
       let valsiUniq = valsi \\ (map fst valsi')
       lujvo <- catMaybes `fmap` mapM lookupLujvo valsiUniq
@@ -310,31 +329,31 @@ cmdValsi = Cmd
       list (reply $ "no results for: " ++ terms) replies (map snd $ join $ results')
 
 -- Lookup a lookup a gismu/cmavo/extant-lujvo/fu'ivla
-lookupValsi :: String -> LojbotCmd [(String,String)]
+lookupValsi :: String -> LojbotAction [(String,String)]
 lookupValsi w = do
   db <- lift $ gets lojbotJboDB
   return $ map (((,) w) . showValsi) $ valsi db w
 
 -- Lookup the parts of a lujvo and display it.
-lookupLujvo :: String -> LojbotCmd (Maybe (String,String))
+lookupLujvo :: String -> LojbotAction (Maybe (String,String))
 lookupLujvo w =
     case rafsis w' of
       [] -> return Nothing
       rs -> do db <- lift $ gets lojbotJboDB
                Right (_,good) <- liftIO $ translate w'
                let selrafsi = map (findSelrafsi db) rs
-               return $ Just $ (w,showLujvo w' rs selrafsi good)
+               return $ Just $ (w,showLujvo (w/=w') w' rs selrafsi good)
     where w' = fixClusters w
 
 -- Show a nonce lujvo.
-showLujvo :: String -> [String] -> [Maybe JboValsi] -> String -> String
-showLujvo w rs selrafsi good = 
-    "lujvo {" ++ w ++ "}" ++ rafsis rs ++ selrafs selrafsi
+showLujvo :: Bool -> String -> [String] -> [Maybe JboValsi] -> String -> String
+showLujvo fixed w rs selrafsi good = 
+    "lujvo {" ++ w ++ "}" ++ bool "" " (fixed)" fixed ++ rafsis rs ++ selrafs selrafsi
     ++ selgloss selrafsi ++ ": " ++ trans good
   where rafsis = (", with rafsis "++) . braces . commas
         selrafs = (", selrafsi "++) . braces . commas . catMaybes . map (fmap valsiWord)
         selgloss = (' ':) . parens . commas . catMaybes . map (fmap (slashes . valsiGloss))
-        trans = fromMaybe "" . fmap head . matchRegex (mkRegex "/([^/]+)/")
+        trans = fromMaybe "" . fmap head . match "/([^/]+)/"
 
 -- Describe a selma'o and link to the reference grammar
 cmdRef :: Cmd
@@ -358,10 +377,10 @@ cmdSelma'o = Cmd { cmdName = ["selma'o","s"]
     proc selma'o = do
       db <- lift $ gets lojbotJboDB
       case filterSelma'o db (lower selma'o) of
-        [] -> return ()
+        [] -> reply "no such selma'o"
         xs -> replies $ split' (commas list) ++ (map showValsi xs)
             where list = map showCmavo xs
-                  showCmavo w = "\2" ++ valsiWord w ++ "\2: " ++ (slashes $ valsiGloss w)
+                  showCmavo w = "{" ++ valsiWord w ++ "}: " ++ (slashes $ valsiGloss w)
 
 -- Command to display help
 cmdHelp :: Cmd
@@ -370,7 +389,7 @@ cmdHelp = Cmd
   , cmdDesc = "help: <command>\nshows help"
   , cmdProc = proc } where
     proc cmd = do
-      if (isJust $ matchRegex (mkRegex "^[a-zA-Z'_]+$") cmd)
+      if isJust $ match "^[a-zA-Z'_]+$" cmd
          then reply $ maybe "" showCmd $ find (any (==cmd) . cmdName) commands
          else reply $ "commands: " ++ (commas $ map (alias . cmdName) commands)
     showCmd cmd = alias (cmdName cmd) ++ ": " ++ cmdDesc cmd
@@ -398,19 +417,19 @@ more later = " .. " ++ show (length later)
              ++ " more result" ++ s where
     s = if length later > 1 then "s" else ""
 
-replies :: [String] -> LojbotCmd ()
+replies :: [String] -> LojbotAction ()
 replies (x:xs) | null xs   = reply x
                | otherwise = do reply $ x ++ more xs
                                 setMore xs
 replies [] = return ()
 
-setMore :: [String] -> LojbotCmd ()
+setMore :: [String] -> LojbotAction ()
 setMore xs = do
   to <- gets replyTo
   mores <- lift $ gets lojbotMore
   lift $ modify $ \state -> state { lojbotMore = update (to,xs) mores }
 
-reply :: String -> LojbotCmd ()
+reply :: String -> LojbotAction ()
 reply msg = do
   to <- gets replyTo
   lift $ mapM_ (irc . privmsg to) $ split' msg
@@ -438,10 +457,10 @@ replyTo (from,to) | "#" `isPrefixOf` to = to
 data Cmd = Cmd
     { cmdName :: [String]               -- Name and aliases
     , cmdDesc :: String                 -- A description for the help file
-    , cmdProc :: String -> LojbotCmd () -- The process to be run
+    , cmdProc :: String -> LojbotAction () -- The process to be run
     }
 
-type LojbotCmd = StateT CmdSt Lojbot
+type LojbotAction = StateT CmdSt Lojbot
 type CmdSt = (String  -- Who is using the command?
              ,String) -- Who was it sent to?
 
@@ -529,7 +548,9 @@ defConfig = Config
     , confAltNicks = ["lojbot_","lojbot__"]
     , confServer   = "127.0.0.1"
     , confPort     = 6667
-    , confChans    = [ChanAssign "#lojbot" True ["@","?"]]
+    , confChans    = [ChanAssign "#lojbot" True ["@","?"]
+                     ,ChanAssign "#haskell" True ["%"]
+                     ,ChanAssign "#lojban" True []]
     , confAdmins   = ["chrisdone"] 
     , confJbov     = "jbovlaste.db"
     , confLogFile  = LogStdout 
@@ -552,13 +573,15 @@ data LogH = LogStdout      -- Just use stdout to log
   deriving (Read,Show)
 
 -- General utilties
+match = matchRegex . mkRegex
 braces s = "{" ++ s ++ "}"
 parens s = "(" ++ s ++ ")"
-commas = intercalate ", "
-slashes = intercalate "/"
+commas = intercalate ", " . filter (/="")
+slashes = intercalate "/" . filter (/="")
 list nil c [] = nil; list _ c v = c v
 alias (x:xs) = x ++ list "" ((" "++) . parens . commas) xs
 update a = unionBy ((==) `on` fst) [a]
-bool a b p = if p then a else b
+bool b a p = if p then a else b
 lower = map toLower
 trim = unwords . words
+lojban = map (filter (\c -> isLetter c || c =='\'') . lower)
