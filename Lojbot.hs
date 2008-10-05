@@ -142,7 +142,7 @@ startVoicer = do
 voicer :: MVar Jbocre -> Lojbot ()
 voicer var = forever $ do
   -- decay and give voice every two minutes
-  liftIO $ threadDelay $ minutes * 1
+  liftIO $ threadDelay $ seconds
   (topic,access) <- liftIO $ takeMVar var
   newAccess <- mapM act $ M.toList access
   liftIO $ putMVar var (topic,M.fromList newAccess)
@@ -197,10 +197,11 @@ lineHandler msg =
 
 -- Handle an IRC commands or nickserv messages, to be acted upon
 handleMsg :: Message -> Lojbot ()
-handleMsg msg =
-    case msg of
-      Message _ "PING" ps -> irc $ Message Nothing "PONG" ps
-      _ -> maybe (handlePMs msg) handleNickserv (nickservMsg msg)
+handleMsg msg = do
+  case msg of
+    Message _ "PING" ps -> irc $ Message Nothing "PONG" ps
+    Message (Just (NickName "lojbot" _ _)) "JOIN" ["#jbocre"] -> irc $ privmsg "chanserv" "op #jbocre lojbot"
+    _ -> maybe (handlePMs msg) handleNickserv (nickservMsg msg)
 
 -- Nickserv actions:
 -- 1) Reply to nickserv with identify command
@@ -260,6 +261,7 @@ data Msg = Msg { msgCmd :: String, msgFrom :: String, msgPs :: [String] }
 
 mkMsg :: Message -> Msg
 mkMsg (Message (Just (NickName from _ _)) cmd ps) = Msg cmd from ps
+mkMsg (Message (Just _) cmd ps) = Msg cmd "" ps
 mkMsg (Message Nothing cmd ps) = Msg cmd "" ps
 
 msgText :: Msg -> String
@@ -370,7 +372,27 @@ coiDoi = ["be'e","co'o","coi","fe'o","fi'i","je'e","ju'i","ke'o","ki'e"
 -- Main command list
 commands = [cmdValsi,cmdDef,cmdTrans,cmdGrammar,cmdVoice
            ,cmdSelma'o,cmdRef,cmdCLL,cmdLujvo,cmdSelrafsi
-           ,cmdMlismu,cmdAddFatci,cmdMore,cmdHelp,cmdCamxes]
+           ,cmdMlismu,cmdAddFatci,cmdMore,cmdHelp,cmdCamxes
+           ,cmdTime]
+
+cmdTime :: Cmd
+cmdTime = Cmd { cmdName = ["temci"]
+              , cmdDesc = "shows when you can next talk"
+              , cmdProc = proc } where
+    proc _ = do
+      var <- lift $ gets lojbotJbocre
+      (_,access) <- liftIO $ readMVar var
+      from <- gets msgFrom
+      case M.lookup from access of
+        Just (False,d,old) -> do now <- liftIO $ epochTime 
+                                 reply $ "you will be able to talk in " 
+                                         ++ mins (diff d old now)
+        _                  -> reply "you can talk"
+     where mins t = format ((read (show t) :: Int) `div` 60)
+           diff delay timestamp now = (timestamp + delay) - now
+           format n | n == 0    = "just under a minute"
+                    | n == 1    = "one minute"
+                    | otherwise = show n ++ " minutes"
 
 cmdCamxes :: Cmd
 cmdCamxes = Cmd { cmdName = ["valid"]
@@ -378,7 +400,7 @@ cmdCamxes = Cmd { cmdName = ["valid"]
                 , cmdProc = proc } where
     proc text = do
       valid <- lift $ isValidLojban text
-      reply $ show $ valid
+      reply $ bool ("not valid: " ++ text) ("valid: " ++ text) valid
 
 cmdVoice :: Cmd
 cmdVoice = Cmd { cmdName = ["voice"]
@@ -507,8 +529,8 @@ cmdDef = Cmd { cmdName = ["definition","d"]
     proc string = do
       db <- lift $ gets lojbotJboDB
       case defSub db string ++ defWildCard db string of
-        []     -> reply $ show string ++ " not found in any definitions"
-        valsis -> replies $ map showValsi valsis
+        []     -> reply $ show string ++ " not found"
+        valsis -> replies $ map showValsi $ sort valsis
 
 -- valsi lookup
 cmdValsi :: Cmd
@@ -517,13 +539,14 @@ cmdValsi = Cmd
   , cmdDesc = "lookup a gismu/cmavo/lujvo/fu'ivla"
   , cmdProc = proc } where
     proc terms = do
-      let valsi = lojban $ words terms
+      let valsi = terms : (map lojban (words terms) ++ words terms)
       valsi' <- join `fmap` mapM lookupValsi valsi
       let valsiUniq = valsi \\ (map fst valsi')
       lujvo <- catMaybes `fmap` mapM lookupLujvo valsiUniq
       let results  = lujvo ++ valsi'
           results' = map (\v -> filter ((==v) . fst) results) valsi
-      list (reply $ "no results for: " ++ terms) replies (map snd $ join $ results')
+          out = map snd $ nub $ join $ results'
+      list (cmdProc cmdDef terms) replies out
 
 -- Lookup a lookup a gismu/cmavo/extant-lujvo/fu'ivla
 lookupValsi :: String -> LojbotAction [(String,String)]
@@ -761,7 +784,7 @@ defConfig = Config
     , confServer   = "127.0.0.1"
     , confPort     = 6667
     , confChans    = [ChanAssign "#lojbot" True ["@","?"]
-                     ,ChanAssign "#haskell" True ["%"]
+--                     ,ChanAssign "#haskell" True ["%"]
                      ,ChanAssign "#lojban" True []
                      ,ChanAssign "#jbocre" False []]
     , confAdmins   = ["chrisdone"] 
@@ -818,6 +841,7 @@ update a = unionBy ((==) `on` fst) [a]
 bool b a p = if p then a else b
 lower = map toLower
 trim = unwords . words
-lojban = map (filter (\c -> isLetter c || c =='\'') . lower)
+lojban :: String -> String
+lojban = filter (\c -> isLetter c || c =='\'') . lower
 seconds = 1000 * 1000
 minutes = seconds * 60
