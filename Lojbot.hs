@@ -10,6 +10,7 @@ import Data.List
 import Data.Map (Map)
 import qualified Data.Map as M
 import Data.Maybe
+import Data.Ord
 import Foreign.C.Types
 import Language.Lojban.Jbovlaste
 import Language.Lojban.Lujvo
@@ -154,7 +155,7 @@ act user@(nick,(hasVoice,delay,time)) = do
      then let newDelay = max 120 (delay - 1)
           in return (nick,(True,newDelay, time))
      else if now - time > delay
-             then do mode "#jbocre" nick "+v"
+             then do mode "#jbosnu" nick "+v"
                      return (nick,(True,delay,time))
              else return user
 
@@ -200,7 +201,7 @@ handleMsg :: Message -> Lojbot ()
 handleMsg msg = do
   case msg of
     Message _ "PING" ps -> irc $ Message Nothing "PONG" ps
-    Message (Just (NickName "lojbot" _ _)) "JOIN" ["#jbocre"] -> irc $ privmsg "chanserv" "op #jbocre lojbot"
+    Message (Just (NickName "lojbot" _ _)) "JOIN" ["#jbosnu"] -> irc $ privmsg "chanserv" "op #jbosnu lojbot"
     _ -> maybe (handlePMs msg) handleNickserv (nickservMsg msg)
 
 -- Nickserv actions:
@@ -275,20 +276,20 @@ msgTo = list "" head . msgPs
 
 -- Actions to perform on private messages
 
-actions = [actDoi,actJbocre,actJoin]
+actions = [actDoi,actJbocre,actJoin,actRecord]
 
 actJoin :: LojbotAction ()
 actJoin = do
   msg <- get
   case msg of
-    Msg "JOIN" from ("#jbocre":_) -> voice from
+    Msg "JOIN" from ("#jbosnu":_) -> voice from
     _                             -> return ()
 
 voice :: String -> LojbotAction ()
 voice from = do
   var <- lift $ gets lojbotJbocre
   (_,access) <- liftIO $ readMVar var
-  let voice = lift $ mode "#jbocre" from "+v"
+  let voice = lift $ mode "#jbosnu" from "+v"
   case M.lookup from access of
     Just (True,_,_) -> voice
     Nothing         -> voice
@@ -297,8 +298,8 @@ voice from = do
 actJbocre :: LojbotAction ()
 actJbocre = do
   m@(Msg cmd from (to:text')) <- get
-  let text = join text'
-  when (to == "#jbocre") $ do
+  let text = skipSa $ join text'
+  when (to == "#jbosnu") $ do
     when (any (==cmd) ["PRIVMSG","TOPIC"]) $ do
        valid <- lift $ isValidLojban (translateAction text)
        if not valid
@@ -306,6 +307,9 @@ actJbocre = do
                   lift $ mute from
                   when (cmd == "TOPIC") $ lift $ restoreTopic
           else lift $ updateTopic text
+
+skipSa :: String -> String
+skipSa = unwords . dropWhile (=="sa") . words
 
 translateAction :: String -> String
 translateAction text 
@@ -323,7 +327,7 @@ restoreTopic :: Lojbot ()
 restoreTopic = do
   var <- gets lojbotJbocre
   (topic,_) <- liftIO $ readMVar var
-  when (topic /= "") $ irc $ Message Nothing "TOPIC" ["#jbocre", topic]
+  when (topic /= "") $ irc $ Message Nothing "TOPIC" ["#jbosnu", topic]
 
 mute :: String -> Lojbot ()
 mute nick = do
@@ -333,7 +337,8 @@ mute nick = do
   let update (_,n,t) = (False,n*2,now)
       access' = M.insertWith (const $ update) nick (False,60,now) access
   liftIO $ putMVar var (topic,access')
-  mode "#jbocre" nick "-v"
+  irc $ privmsg "#jbosnu" ("oi ko se jbobau doi la'o zoi " ++ nick ++ " zoi")
+  mode "#jbosnu" nick "-v"
 
 mode :: String -> String -> String -> Lojbot ()
 mode chan nick mode = do
@@ -343,9 +348,11 @@ actRecord :: LojbotAction ()
 actRecord = do
   fatci <- gets msgText
   (to:_) <- gets msgPs
-  if any (==to) ["#lojban","#lojbot"]
+  nick <- lift $ config confNickName
+  if any (==to) ["#lojban","#lojbot","#jbosnu",nick]
      then do mli <- lift $ gets lojbotMlismu
-             liftIO $ readFatci mli fatci
+             valid <- lift $ isValidLojban fatci
+             when valid $ liftIO $ readFatci mli fatci
      else return ()
 
 actDoi :: LojbotAction ()
@@ -353,8 +360,10 @@ actDoi = do
   text <- gets msgText
   nick <- lift $ config confNickName
   prenu <- gets msgFrom
-  let selbridi = unwords $ filter ((>=3) . length) $ words $ text
-  if isCOI nick text && (length (words text) > 2) 
+  valid <- lift $ isValidLojban (translateAction text)
+  let text' = (translateAction text)
+      selbridi = unwords $ filter ((>=3) . length) $ words $ text'
+  if valid && isCOI nick text' && (length (words text') > 2) 
       then cmdProc cmdMlismu selbridi 
       else return ()
 
@@ -433,7 +442,7 @@ cmdMlismu = Cmd { cmdName = ["mlismu"]
       out <- liftIO $ randomBridiRel mli $ words rel
       case out of
         Just bridi -> reply bridi
-        Nothing    -> reply "ii oi mi spofu ko tavla la kris"
+        Nothing    -> reply "ii mi spofu i e'u ko tavla la kris"
 
 -- Reply with some random grammatical lojbanic text and provide a translation
 cmdJbobau' :: Cmd
@@ -540,29 +549,44 @@ cmdValsi = Cmd
   , cmdProc = proc } where
     proc terms = do
       let valsi = terms : (map lojban (words terms) ++ words terms)
+          word  (_,x,_) = x
+          desc  (_,_,x) = x
+          vtype (x,_,_) = x
       valsi' <- join `fmap` mapM lookupValsi valsi
-      let valsiUniq = valsi \\ (map fst valsi')
+      let valsiUniq = valsi \\ (map word valsi')
       lujvo <- catMaybes `fmap` mapM lookupLujvo valsiUniq
-      let results  = lujvo ++ valsi'
-          results' = map (\v -> filter ((==v) . fst) results) valsi
-          out = map snd $ nub $ join $ results'
-      list (cmdProc cmdDef terms) replies out
+      dvalsi <- defLookup terms
+      let results  = list dvalsi id $ lujvo ++ valsi'
+          results' = map (\v -> filter ((==v) . word) results) valsi
+          results'' = sortBy (comparing vtype) $ nub $ join $ results'
+          out = map desc $ results''
+      list (reply $ show terms ++ " not found") replies out
+
+-- Lookup a definition
+defLookup :: String -> LojbotAction [(JboValsiType,String,String)]
+defLookup w = do
+  db <- lift $ gets lojbotJboDB
+  let phrase = map (\v -> (valsiType v,w,showValsi v)) $ defSub db w
+      terms  = join $ map (map (\v -> (valsiType v,w,showValsi v)) . defSub db) $ words w
+  return $ phrase ++ if null phrase then terms else []
 
 -- Lookup a lookup a gismu/cmavo/extant-lujvo/fu'ivla
-lookupValsi :: String -> LojbotAction [(String,String)]
+lookupValsi :: String -> LojbotAction [(JboValsiType,String,String)]
 lookupValsi w = do
   db <- lift $ gets lojbotJboDB
-  return $ map (((,) w) . showValsi) $ valsi db w
+  let simple = map (\v -> (valsiType v,w,showValsi v)) $ valsi db w
+      byGloss = map (\v -> (valsiType v,w,showValsi v)) $ nub $ join $ map (valsiByGloss db) $ w : words w
+  return $ simple ++ byGloss
 
 -- Lookup the parts of a lujvo and display it.
-lookupLujvo :: String -> LojbotAction (Maybe (String,String))
+lookupLujvo :: String -> LojbotAction (Maybe (JboValsiType,String,String))
 lookupLujvo w =
     case rafsis w' of
       [] -> return Nothing
       rs -> do db <- lift $ gets lojbotJboDB
                Right (_,good) <- liftIO $ translate w'
                let selrafsi = map (findSelrafsi db) rs
-               return $ Just $ (w,showLujvo (w/=w') w' rs selrafsi good)
+               return $ Just $ (LujvoType,w,showLujvo (w/=w') w' rs selrafsi good)
     where w' = fixClusters w
 
 -- Show a nonce lujvo.
@@ -729,9 +753,7 @@ data LojbotSt = LojbotSt
     , lojbotJbocre :: MVar Jbocre
     , lojbotCamxes :: Maybe Camxes
     }
-
 type Camxes = MVar (Handle,Handle)
-
 type Jbocre = (String,AccessTable)
 type AccessTable = Map String NickAccess
 type NickAccess = (Bool,DelayNumber, DevoiceTime)
@@ -786,10 +808,10 @@ defConfig = Config
     , confChans    = [ChanAssign "#lojbot" True ["@","?"]
 --                     ,ChanAssign "#haskell" True ["%"]
                      ,ChanAssign "#lojban" True []
-                     ,ChanAssign "#jbocre" False []]
+                     ,ChanAssign "#jbosnu" False []]
     , confAdmins   = ["chrisdone"] 
     , confJbov     = "jbovlaste.db"
-    , confLogFile  = LogStdout 
+    , confLogFile  = LogF "lojbot.log"
     , confTrainDat = "lojban.log"
     , confMlismu = "fatci.txt"
     }
@@ -824,11 +846,13 @@ isValidLojban line = do
                             return $ line == text 
 
 newCmavo :: String -> String
-newCmavo = la'oi . zo'oi where
-    zo'oi = flip (subRegex (mkRegex zo'oiR)) " co'e"
+newCmavo = me'oi . la'oi . zo'oi where
+    zo'oi = flip (subRegex (mkRegex zo'oiR)) " zo'e"
     zo'oiR = "(^zo'oi ([^ ]+)| zo'oi ([^ ]+))"
-    la'oi = flip (subRegex (mkRegex la'oiR)) " co'e"
+    la'oi = flip (subRegex (mkRegex la'oiR)) " zo'e"
     la'oiR = "(^la'oi ([^ ]+)| la'oi ([^ ]+))"
+    me'oi = flip (subRegex (mkRegex la'oiR)) " zo'e"
+    me'oiR = "(^me'oi ([^ ]+)| me'oi ([^ ]+))"
 
 match = matchRegex . mkRegex
 braces s = "{" ++ s ++ "}"
