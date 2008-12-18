@@ -50,8 +50,7 @@ data LojbotSt = LojbotSt
 type Camxes = MVar (Handle,Handle)
 
 -- | More messages.
-type Mores = (String    -- ^ Nick/channel
-             ,[String]) -- ^ The reply
+type Mores = (String,[String])
 
 -- | Default state.
 defState :: LojbotSt
@@ -388,27 +387,8 @@ commands = [cmdValsi,cmdDef,cmdTrans,cmdGrammar
            ,cmdSelma'o,cmdRef,cmdCLL,cmdLujvo,cmdSelrafsi
            ,cmdMore,cmdHelp,cmdCamxes]
 
--- | camxes test for validity.
-cmdCamxes :: Cmd
-cmdCamxes = Cmd { cmdName = ["valid"]
-                , cmdDesc = "camxes test for validity"
-                , cmdProc = proc } where
-    proc text = do
-      valid <- lift $ isValidLojban text
-      reply $ bool ("not valid: " ++ text) ("valid: " ++ text) valid
-      nick <- gets msgFrom
-      reply $ "valid fatci (if any) were added, " ++ nick
-
--- | Reply with some random grammatical lojbanic text.
-cmdJbobau :: Cmd
-cmdJbobau = Cmd { cmdName = ["jbobau","tavla"]
-                , cmdDesc = "reply with some random grammatical lojbanic text \
-                            \(uses #lojban IRC logs for training data)"
-                , cmdProc = proc } where
-    proc rel = do
-      jbo <- lift $ gets lojbotJbobau
-      line <- liftIO $ jbobauLine jbo
-      reply line
+-----------------------------------------
+-- Lookup utilities
 
 -- | Find all lujvo with a selrafsi.
 cmdSelrafsi :: Cmd
@@ -433,44 +413,6 @@ cmdLujvo = Cmd { cmdName = ["lujvo"]
         Left e -> reply (list "" head $ lines e)
         Right xs -> reply $ commas $ map showLujvo xs
       where showLujvo (r,w) = w ++ " (" ++ show r ++ ")"
-
--- | Lookup from the CLL.
-cmdCLL :: Cmd
-cmdCLL = Cmd { cmdName = ["cll"]
-             , cmdDesc = "lookup something in the lojban reference grammar"
-             , cmdProc = proc } where
-    proc text = do
-      res <- if null text' then return Nothing else liftIO $ cll text'
-      case res of
-        Just res | res /= [] -> replies $ map showRes res
-        _ -> reply $ "no results for \"" ++ text ++ "\""
-      where showRes (url,desc) = url ++ " : " ++ desc
-            text' = UTF8.encodeString $ filter ok $ UTF8.decodeString text
-            ok c = isLetter c || isSpace c || c == '\'' || c == '"' || c == '-'
- 
--- | Check some lojban grammar.
-cmdGrammar :: Cmd
-cmdGrammar = Cmd { cmdName = ["grammar","jg","g"]
-                 , cmdDesc = "check/show grammar with jbofihe -ie"
-                 , cmdProc = proc } where
-    proc text = do
-      res <- liftIO $ grammar text
-      case res of
-        Right (err,out) | out /= "" -> reply out
-                        | otherwise -> reply "parse error"
-        Left e -> reply (list "" head $ lines e)
-
--- | Translate some lojban.
-cmdTrans :: Cmd
-cmdTrans = Cmd { cmdName = ["translate","jt","t"]
-               , cmdDesc = "translate some lojban with jbofihe -x"
-               , cmdProc = proc } where
-    proc text = do
-      res <- liftIO $ translate (newCmavo text)
-      case res of
-        Right (err,out) | out /= "" -> reply out
-                        | otherwise -> reply "parse error"
-        Left e -> reply (list "" head $ lines e)
 
 -- | Search for valsi(s) by definition.
 cmdDef :: Cmd
@@ -580,6 +522,62 @@ cmdHelp = Cmd
          else reply $ "commands: " ++ (commas $ map (alias . cmdName) commands)
     showCmd cmd = alias (cmdName cmd) ++ ": " ++ cmdDesc cmd
 
+-- | Lookup from the CLL.
+cmdCLL :: Cmd
+cmdCLL = Cmd { cmdName = ["cll"]
+             , cmdDesc = "lookup something in the lojban reference grammar"
+             , cmdProc = proc } where
+    proc text = do
+      res <- if null text' then return Nothing else liftIO $ cll text'
+      case res of
+        Just res | res /= [] -> replies $ map showRes res
+        _ -> reply $ "no results for \"" ++ text ++ "\""
+      where showRes (url,desc) = url ++ " : " ++ desc
+            text' = UTF8.encodeString $ filter ok $ UTF8.decodeString text
+            ok c = isLetter c || isSpace c || c == '\'' || c == '"' || c == '-'
+
+-----------------------------------------
+-- Grammar
+
+-- | camxes test for validity.
+cmdCamxes :: Cmd
+cmdCamxes = Cmd { cmdName = ["valid"]
+                , cmdDesc = "camxes test for validity"
+                , cmdProc = proc } where
+    proc text = do
+      valid <- lift $ isValidLojban text
+      reply $ bool ("not valid: " ++ text) ("valid: " ++ text) valid
+      nick <- gets msgFrom
+      reply $ "valid fatci (if any) were added, " ++ nick
+
+ 
+-- | Check some lojban grammar.
+cmdGrammar :: Cmd
+cmdGrammar = Cmd { cmdName = ["grammar","jg","g"]
+                 , cmdDesc = "check/show grammar with jbofihe -ie"
+                 , cmdProc = proc } where
+    proc text = do
+      res <- liftIO $ grammar text
+      case res of
+        Right (err,out) | out /= "" -> reply out
+                        | otherwise -> reply "parse error"
+        Left e -> reply (list "" head $ lines e)
+
+-----------------------------------------
+-- Translation
+
+-- | Translate some lojban.
+cmdTrans :: Cmd
+cmdTrans = Cmd { cmdName = ["translate","jt","t"]
+               , cmdDesc = "translate some lojban with jbofihe -x"
+               , cmdProc = proc } where
+    proc text = do
+      res <- liftIO $ translate (newCmavo text)
+      case res of
+        Right (err,out) | out /= "" -> reply out
+                        | otherwise -> reply "parse error"
+        Left e -> reply (list "" head $ lines e)
+
 -- | Display more results.
 cmdMore = Cmd { cmdName = ["more"]
               , cmdDesc = "list cmavo of a selma'o"
@@ -680,7 +678,7 @@ doing = log . (++ " ... ")
 
 -- | Log a string.
 log :: String -> Lojbot ()
-log str = dbo
+log str = do
   handle <- gets lojbotLog
   liftIO $ hPutStr handle str
 
@@ -736,11 +734,11 @@ newCmavo = me'oi . la'oi . zo'oi where
 match :: String -> String -> Maybe [String]
 match = matchRegex . mkRegex
 
--- | braces \"foo" = "{foo}"
+-- | braces \"foo\" = \"{foo}\"
 braces :: String -> String
 braces s = "{" ++ s ++ "}"
 
--- | parens \"foo" = "(foo)"
+-- | parens \"foo\" = \"(foo)\"
 parens :: String -> String
 parens s = "(" ++ s ++ ")"
 
@@ -757,7 +755,7 @@ list :: a -> ([b] -> a) -> [b] -> a
 list nil _    [] = nil
 list _   cons v  = cons v
 
--- | alias ["Jonathan","Jon","J"] = "Jonathan (Jon, J)".
+-- | alias [\"Jonathan\",\"Jon\",\"J\"] = \"Jonathan (Jon, J)\".
 alias :: [String] -> String
 alias (x:xs) = x ++ list "" ((" "++) . parens . commas) xs
 alias []     = ""

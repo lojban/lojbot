@@ -1,0 +1,909 @@
+# See http://jbotcan.org/mlismu.txt for more info.
+
+#Only accepts very limited syntax
+
+#people
+.i ro remna cu prenu
+.i ro nanmu cu remna
+.i ro ninmu cu remna
+.i ro nanla cu nanmu
+.i ro nixli cu ninmu
+.i ro da bersa gi'o nanmu
+.i ro da tixnu gi'o ninmu
+.i ro prenu cu ka'e se bersa
+.i ro prenu cu ka'e se tixnu
+.i ro da nanmu gi'o patfu
+.i ro da ninmu gi'o mamta
+ro da ninmu gi'o mensi
+ro da remna gi'o se mensi
+ro da nanmu gi'o bruna
+ro da remna gi'o se bruna
+ro da prenu gi'o ka'e speni
+ro da prenu gi'o ka'e se speni
+ro da danlu gi'o ka'e rorci
+ro da danlu gi'o ka'e se rorci
+ro da danlu gi'o ka'e te rorci
+ro da danlu gi'o ka'e rirni
+ro da danlu gi'o se rirni
+
+#male and female he created them
+.i ro nanmu cu nakni
+.i ro ninmu cu fetsi
+
+#life, give my creation life!
+#I'm drawing a distinction between mortals and immortals
+#anything mortal ka'e morsi, and is therefore alive (tenselessly)
+.i ro morsi cu ka'e jmive
+#all animals can die
+.i ro danlu cu ka'e morsi
+#all people are alive.  But maybe not all people die (Gods are people too!)
+.i ro prenu cu jmive
+
+#animals
+.i ro danlu cu dacti
+.i ro danlu cu ka'e sipna
+.i ro danlu cu ka'e cikna
+
+##mammals
+.i ro mabru cu danlu
+#zo'o dolphins can walk, they just don't try very hard
+.i je'u nai ro mabru cu ka'e cadzu
+.i ro da mabru gi'o se kerfa
+.i ro da xadypau gi'o te kerfa
+.i ro da mabru gi'o ka'e se ladru
+.i ro kerfa cu dacti
+.i ro remna cu mabru
+.i ro tirxu cu mabru
+.i ro smani cu mabru
+.i ro cribe cu mabru
+.i ro gerku cu mabru
+.i ro mlatu cu mabru
+.i ro mirli cu mabru
+.i ro bakni cu mabru
+.i ro xarju cu mabru
+.i ro xanto cu mabru
+.i ro xirma cu mabru
+.i ro ratcu cu mabru
+.i ro ractu cu mabru
+.i ro smacu cu mabru
+.i ro lanme cu mabru
+.i ro kanba cu mabru
+
+##reptiles
+.i ro respa cu danlu
+.i ro respa cu ka'e cadzu
+.i ro respa cu ka'e se sovda
+.i ro since cu respa
+
+##amphibians
+.i ro banfi cu danlu
+.i ro banfi cu ka'e cadzu
+.i ro banfi cu ka'e se sovda
+.i ro pipybanfi cu banfi
+
+##birds
+ro cipni cu danlu
+ro cipni cu ka'e se sovda
+ro cipni cu ka'e cadzu
+ro cipni cu ka'e vofli
+ro cipni cu se pimlu
+ro cipni cu se nalci
+ro jipci cu cipni
+ro gunse cu cipni
+ro datka cu cipni
+
+##bugs 
+#cinki is arthopods, not just "insects".  Spiders too.
+.i ro cinki cu danlu
+.i ro cinki cu cadzu
+.i ro cinki cu se sovda
+.i ro jukni cu cinki
+.i ro manti cu cinki
+.i ro sfani cu cinki
+.i ro sfani cu vofli
+.i ro jalra cu cinki
+.i ro toldi cu cinki
+.i ro civla cu cinki
+.i ro mabru cu ka'e te civla
+
+##fish, worms, others
+.i ro finpe cu danlu
+.i ro finpe cu ka'e se sovda
+.i ro curnu cu danlu
+
+#places
+.i ro da stuzi gi'o se zvati
+.i ro dacti ka'e zvati
+.i ro fasnu ka'e zvati
+
+#movement
+.i ro da stuzi gi'o se klama
+.i ro da stuzi gi'o se muvdu
+.i ro da stuzi gi'o te klama
+.i ro da stuzi gi'o te muvdu
+.i je'u nai ro da danlu gi'o ka'e limna
+ro da pluta gi'o ve klama
+ro da pluta gi'o ve muvdu
+ro sefta cu ka'e se cadzu
+ro dargu cu se sefta
+ro klaji cu se sefta
+.i ro da cadzu gi'o bajra
+.i ro da cadzu gi'o se tuple
+ro tuple cu dacti
+ro da muvdu gi'o carna
+ro da se carna gi'o linji
+ro da te carna gi'o farna
+
+#body parts
+ro xadypau cu dacti
+ro da danlu gi'o se stedu
+ro stedu cu xadypau
+ro da danlu gi'o se kanla
+.i ro kanla cu xadypau
+ro da danlu gi'o se moklu
+.i ro mokla cu xadypau
+ro da danlu gi'o se kerlo
+ro kerlo cu xadypau
+ro da danlu gi'o se cnebo
+ro cnebo cu xadypau
+ro da danlu gi'o se cutne
+ro cutne cu xadypau
+ro da danlu gi'o se betfu
+ro betfu cu xadypau
+ro da se tuple gi'o se zargu
+ro zargu cu xadypau
+ro da se birka gi'o se xance
+ro xance cu xadypau
+ro da se tuple gi'o se jamfu
+ro jamfu cu xadypau
+ro da se xance gi'o jgari
+ro da xance gi'o te jgari
+ro dacti cu se jgari
+
+ro rango cu dacti
+ro da danlu gi'o se rango
+.i ro da danlu gi'o se besna
+.i ro besna cu rango
+ro da danlu gi'o se risna
+ro risna cu rango
+ro da danlu gi'o se livga
+ro livga cu rango
+
+#food and drink, lots from Broca
+ro xalselpinxe cu ka'e se pinxe
+ro vanju cu xalselpinxe
+ro birje cu xalselpinxe
+ro jikru cu xalselpinxe
+ro uiski cu jikru
+ro xalselpinxe cu ka'e se jikru
+ro grute cu ka'e se vanju
+ro xalselpinxe cu ka'e se barja
+ro barja cu stuzi
+ro cidja cu ka'e fusra
+.i ro spati cu ka'e se tcati
+.i ro tcati cu ka'e se pinxe
+.i ro ckafi cu ka'e se pinxe
+.i ro danlu cu ka'e xagji
+.i ro cidja cu ka'e se xagji
+.i ro se pinxe cu litki
+.i ro danlu cu ka'e pinxe
+.i ro birje cu ka'e se pinxe
+.i ro danlu cu ka'e citka
+.i ro dacti cu ka'e se citka
+.i ro danlu cu dacti
+.i ro da danlu gi'o se cidja
+.i ro stasu cu cidja
+.i ro nanba cu cidja
+.i ro gurni cu cidja
+.i ro rectu cu cidja
+.i ro danlu cu se rectu
+.i ro rango cu cidja
+.i ro bavmi cu gurni
+.i ro da gurni gi'o se nanba
+.i ro da gurni gi'o se birje
+.i ro cidja cu ka'e se stasu
+.i ro mraji cu gurni
+.i ro xruba cu gurni
+.i ro maxri cu gurni
+.i ro cunmi cu gurni
+.i ro rismi cu gurni
+.i ro zumri cu gurni
+
+#plants
+.i ro gurni cu spati
+.i ro spati cu jmive
+.i ro spati cu te stagi
+.i ro grute cu stagi
+.i ro stagi cu spati
+.i ro grute cu se vanju
+.i ro vanju cu ka'e se pinxe
+.i ro plise cu grute
+.i ro nimre cu grute
+.i ro vanjba cu grute
+.i ro srasu cu spati
+.i ro marna cu spati
+.i ro se ckafi cu dembi
+.i ro dembi cu stagi
+
+
+#communication
+.i ro prenu cu ka'e cusku
+.i ro selsku cu se cusku
+.i ro prenu cu ka'e te cusku
+.i ro prenu cu ka'e xusra
+.i ro da fatci gi'o se xusra
+.i ro da pinka gi'o selsku
+.i ro da ka'e se pinka
+.i ro da prenu gi'o te pinka
+.i ro da prenu gi'o ve pinka
+
+.i ro da se moklu gi'o bacru
+.i ro da sance gi'o se bacru
+
+#actions
+.i ro da prenu gi'o gasnu
+.i ro da fasnu gi'o se gasnu
+.i ro da prenu gi'o zukte
+.i ro da fasnu gi'o se zukte
+.i ro da fasnu gi'o te zukte
+
+.i ro da prenu gi'o denpa
+.i ro da fasnu gi'o se denpa
+#FIXME: te denpa is a za'i
+.i ro da fasnu gi'o ve denpa
+
+ro da prenu gi'o renro
+ro da dacti gi'o se renro
+ro dacti cu te renro
+ro farna cu te renro
+ro da dacti gi'o se farna
+
+.i zo'o ro danlu cu ka'e se rebla
+.i ro remna cu se birka
+.i ro smani cu se birka
+.i ro tuple cu ka'e te cadzu
+.i ro birka cu ka'e te cadzu
+.i ro te cadzu cu ka'e te bajra
+.i ro da nakni gi'o se pinji
+.i zo'o ro pinji cu ka'e te cadzu
+.i ro mabru cu se denci
+.i ro respa cu se denci
+.i ro finpe cu se denci
+.i ro denci cu dacti
+.i ro dacti cu se sefta
+.i ro sefta cu ka'e se cadzu
+.i ro se cadzu cu ka'e se bajra
+.i ro loldi cu sefta
+.i ro kumfa cu se loldi
+.i ro dacti cu ka'e cpana
+.i ro se cpana cu sefta
+.i ro te kumfa cu sefta
+.i ro selsku cu ka'e preti
+.i ro prenu cu ka'e te preti
+.i ro prenu cu ka'e ve preti
+ro da zukte gi'o klama
+ro da dacti gi'o muvdu
+ro klama cu muvdu
+ro da marce gi'o xe klama
+ro karce cu marce
+ro vinji cu marce
+ro vinji cu ka'e vofli
+ro tricu cu spati
+ro cindu cu tricu
+ro da prenu gi'o se purdi
+ro da spati gi'o te purdi
+ro da stuzi gi'o se cange
+ro da prenu gi'o te cange
+ro da spati gi'o ve cange
+ro da stuzi gi'o se ckule
+ro da prenu gi'o ve ckule
+ro da prenu gi'o xe ckule
+ro da prenu gi'o tadni
+
+#colors: any object can be any colour
+#this is probably not right, but humourous enough to leave
+zo'o ro da dacti gi'o blanu
+zo'o ro da dacti gi'o blabi
+zo'o ro da dacti gi'o crino
+zo'o ro da dacti gi'o zirpu
+zo'o ro da dacti gi'o xunre
+zo'o ro da dacti gi'o nukni
+zo'o ro da dacti gi'o xekri
+
+ro danlu cu ka'e tatpi
+ro da fasnu gi'o se tatpi
+ro danlu cu ka'e surla
+ro fasnu cu ka'e se surla
+ro danlu cu ka'e vreta
+ro da sefta gi'o se vreta
+ro da prenu gi'o nelci
+ro da prenu gi'o jundi
+ro prenu cu ka'e gleki
+ro da cu ka'e te krici
+ro da cu ka'e se nelci
+ro da cu ka'e se tadni
+ro da cu ka'e te djuno
+ro da cu ka'e melbi
+ro da prenu gi'o se melbi
+ro dacti cu ka'e lenku
+ro prenu cu ka'e se lenku
+ro da dacti gi'o glare
+ro prenu cu ka'e se glare
+ro da dacti gi'o marji
+ro djacu cu ka'e se marji
+ro mudri cu ka'e se marji
+ro da tricu gi'o se mudri
+
+ro mudri cu ka'e jelca
+.i ro da se fagri gi'o jelca
+.i ro fagri cu glare
+.i ro fagri cu ka'e se danmo
+
+ro ladru cu ka'e se pinxe
+ro djacu cu ka'e se pinxe
+
+ro da litki gi'o ka'e se limna
+ro sodva cu ka'e se pinxe
+la kok cu se sodva
+
+ro jbari cu grute
+ro jbopre cu prenu
+ro jbopre cu cizra
+ro zdile cu cinri
+ro cizra cu cinri
+ro papri cu dacti
+ro jbopre cu sampli
+ro fonxa cu minji
+
+ro da prenu gi'o se tixnu
+
+.i la timos cu nanmu
+.i la timos cu dotco
+.i la turgul cu prenu
+.i la r cu nanmu
+.i la clsn cu nanmu
+.i la azetydin cu ninmu
+.i la marn cu nanmu
+.i la camgusmis cu nanmu
+.i la epkat cu nanmu
+.i la djan cu nanmu
+.i la djancak cu nanmu
+.i la keven cu nanmu
+.i la bancus cu nanmu
+.i la norsmu cu prenu
+.i la lOkadin cu nanmu
+.i la lOkadin cu fraso
+.i la cizra cu cizra
+.i la cizra cu remna
+.i la cizra cu se zargu #at his insistence
+.i la gejyspa cu nanmu
+.i la selckik cu nanmu
+.i la florolf cu nanmu
+.i la nam cu nanmu
+
+la lojban cu bangu
+la gliban cu bangu
+.i ro prenu cu ka'e se bangu
+
+la xit. cu nanmu
+la xorxes cu vlipa
+la xorxes cu nanmu
+la xod cu nanmu
+la cein cu nanmu
+la xod cu nanmu
+
+la telperion cu tricu
+la laurelin cu tricu
+
+# Senses
+ro zgike cu sance
+ro sance cu ka'e se tirna
+ro dacti cu ka'e se viska
+
+# Violence
+ro jmive cu ka'e se catra
+ro se catra cu mrobi'o
+ro danlu cu ka'e catra
+ro danlu cu ka'e darxi
+ro dacti cu ka'e se tikpa
+ro se tuple cu ka'e tikpa
+
+# Physics
+ro da dacti gi'o se vasru
+ro da fasnu gi'o se rinka
+ro da fasnu gi'o rinka
+ro da fasnu gi'o te rinka
+ro da se rinka gi'o jalge
+ro sligu cu dacti
+ro bisli cu sligu
+ro litki cu ka'e se bisli
+ro gapci cu dacti
+ro vacri cu gapci
+
+# Liquids in general
+ro da dacti gi'o cilmo
+ro da litki gi'o se cilmo
+ro litki cu dacti
+ro djacu cu litki
+ro grasu cu litki
+ro ctile cu litki
+ro xalka cu litki
+ro litki cu ka'e se botpi
+ro botpi cu dacti
+ro da danlu gi'o sputu
+ro da litki gi'o se sputu
+ro da danlu gi'o se pinca
+ro da litki gi'o pinca
+ro da litki gi'o rinci
+ro da litki gi'o se cokcu
+
+# Nature
+ro xamsi cu dacti
+ro da se xamsi gi'o plini
+ro da te xamsi gi'o litki
+
+# Materials
+ro solji cu jinme
+ro tirse cu jinme
+ro gasta cu jinme
+ro tinci cu jinme
+ro jinme cu ka'e janbe
+ro se janbe cu sance
+ro jinme cu dacti
+ro jinme cu se marji
+ro da glare gi'o dacti
+ro da lenku gi'o dacti
+ro pelji cu boxfo
+ro pelji cu se papri
+ro se pelji cu mudri
+ro mudri cu ka'e jelca
+ro da jelca gi'o se fagri
+ro se mudri cu se tricu
+ro da jivbu gi'o prenu
+ro se jivbu cu boxfo
+ro da bukpu gi'o se jivbu
+ro da te jivbu gi'o cilta
+ro jinme ka'e se cilta
+ro sunla ka'e se cilta
+ro cilta cu dacti
+ro da cilta gi'o ve fenso
+ro taxfu cu se fenso
+
+# Clothes
+ro taxfu cu ka'e se dasni
+ro danlu cu ka'e dasni
+ro danlu cu ka'e lunbe
+ro da taxfu gi'o te dasni
+ro creka cu taxfu
+ro cutci cu taxfu
+ro gluta cu taxfu
+ro kosta cu taxfu
+ro mapku cu taxfu
+ro palku cu taxfu
+ro pastu cu taxfu
+ro skaci cu taxfu
+ro smoka cu taxfu
+ro taxfu cu dacti
+
+# Emotions/attitudes
+ro da prenu gi'o gleki
+ro da prenu gi'o badri
+ro da prenu gi'o burna
+ro da prenu gi'o nelci
+ro da prenu gi'o prami
+ro da prenu gi'o bredi
+ro fasnu cu ka'e se gleki
+ro fasnu cu ka'e se badri
+ro fasnu cu ka'e se burna
+ro xamgu cu ka'e se nelci
+ro zabna cu ka'e se nelci
+ro se nelci cu ka'e se prami
+ro fasnu cu ka'e se bredi
+ro da ka'e pluka
+ro da prenu gi'o se pluka
+ro da prenu gi'o manci
+ro da fasnu gi'o se manci
+ro da prenu gi'o virnu
+ro da fasnu gi'o se virnu
+ro da prenu gi'o terpa
+ro da fasnu gi'o se terpa
+ro da prenu gi'o xanka
+ro da fasnu gi'o se xanka
+ro da fasnu gi'o te xanka
+ro da fasnu gi'o nabmi
+ro da prenu gi'o se nabmi
+ro da fasnu gi'o te nabmi
+
+# Property
+ro da prenu gi'o ponse
+ro da dacti gi'o se ponse
+ro flalu cu ka'e te ponse
+ro tcaci cu ka'e te ponse
+ro da prenu gi'o ralte
+ro da dacti gi'o se ralte
+ro da prenu gi'o cirko
+ro dacti cu ka'e se cirko
+ro prenu cu ka'e vecnu
+ro se ponse cu ka'e se vecnu
+ro prenu cu ka'e te vecnu
+ro jdima cu ka'e ve vecnu
+ro se vamji cu ka'e se jdima
+ro jdini cu se vamji
+ro fasnu cu se vamji
+ro rupnu cu jdini
+ro prenu cu ka'e zivle
+ro jdini cu ka'e se zivle
+ro kagni cu ka'e te zivle
+ro se vamji cu ka'e ve zivle
+
+ro da prenu gi'o lebna
+ro da dacti gi'o se lebna
+ro da prenu gi'o te lebna
+ro da prenu gi'o cpacu
+ro da dacti gi'o se cpacu
+ro da prenu gi'o te cpacu
+
+# Society
+ro da se flalu gi'o fasnu
+ro da te flalu gi'o cecmu
+ro da ve flalu gi'o fasnu
+ro da xe flalu gi'o prenu
+ro da zekri gi'o fasnu
+ro da se zekri gi'o prenu
+ro da se gugde gi'o cecmu
+ro da te gugde gi'o tutra
+ro da tutra gi'o stuzi
+ro da prenu gi'o se cecmu
+ro da prenu gi'o bradi
+ro da prenu gi'o se bradi
+
+#restraint
+ro da prenu gi'o rinju
+ro da fasnu gi'o te rinju
+ro linsi ka'e se rinju
+ro skori ka'e se rinju
+
+ro linsi cu dacti
+ro se linsi cu se marji
+ro skori cu dacti
+ro se skori cu se marji
+
+# Technology
+ro dinju cu ka'e zdani
+ro da danlu gi'o se zdani
+ro kumfa cu ka'e vasru
+ro da se kumfa gi'o dinju
+ro zdani cu se kumfa
+
+ro gusta cu stuzi
+ro da cidja gi'o se gusta
+ro da prenu gi'o te gusta
+ro da stuzi gi'o se xabju
+ro da danlu gi'o xabju
+
+
+# Information
+#"fatci" is used for a du'u (bridi1 is, actually, text)
+ro da prenu gi'o krici
+ro da fatci gi'o se krici
+ro da prenu gi'o djuno
+ro da fatci gi'o se djuno
+ro da prenu gi'o jinvi
+ro da fatci gi'o se jinvi
+ro da cu ka'e te jinvi
+ro da prenu gi'o smadi
+ro da fatci gi'o se smadi
+ro da ka'e te smadi
+ro da prenu gi'o senpi
+ro da fatci gi'o se senpi
+ro da fatci gi'o jetnu
+ro da fatci gi'o jitfa
+ro da prenu gi'o facki
+ro da ka'e se facki
+ro da fatci gi'o te facki
+ro da prenu gi'o jijnu
+ro da fatci gi'o se jijnu
+ro da ka'e te jijnu
+ro da prenu gi'o jimpe
+ro da fatci gi'o se jimpe
+ro da ka'e te jimpe
+ro da prenu gi'o morji
+ro da fatci gi'o se morji
+ro da ka'e te morji
+ro da fatci gi'o nuzba
+ro da ka'e se nuzba
+ro prenu cu te nuzba
+ro da prenu gi'o ve nuzba
+ro da prenu gi'o sruma
+ro da fatci gi'o se sruma
+ro da ka'e te sruma
+ro da prenu gi'o tugni
+ro prenu cu ka'e se tugni
+ro da fatci gi'o te tugni
+ro da ka'e ve tugni
+
+#Employment
+ro da prenu gi'o gunka
+ro da fasnu gi'o se gunka
+ro da fasnu gi'o jibri
+ro da prenu gi'o se jibri
+ro da prenu gi'o jerna
+ro da fasnu gi'o te jerna
+
+ro da danlu gi'o gletu
+ro da danlu gi'o se gletu
+
+#numbers
+.i ro mulna'u cu namcu
+
+ro da fasnu gi'o krefu
+ro da mulna'u gi'o se krefu
+ro da fasnu gi'o te krefu
+
+ro da fasnu gi'o rapli
+ro da mulna'u gi'o se rapli
+
+#units of measurement
+ro da dacti gi'o mitre
+ro da namcu gi'o se mitre
+
+ro da dacti gi'o grake
+ro da namcu gi'o se grake
+
+ro da temci gi'o cacra
+ro da se temci gi'o fasnu
+ro da te temci gi'o fasnu
+ro da namcu gi'o se cacra
+
+ro da temci gi'o mentu
+ro da namcu gi'o se mentu
+
+ro da temci gi'o snidu
+ro da namcu gi'o se snidu
+
+ro da temci gi'o djedi
+ro da namcu gi'o se djedi
+
+ro da temci gi'o jeftu
+ro da namcu gi'o se jeftu
+
+#days
+.i ro da se cerni gi'o te tcika
+.i ro da se donri gi'o te tcika
+.i ro da se vanci gi'o te tcika
+.i ro da se murse gi'o te tcika
+.i ro da se nicte gi'o te tcika
+
+.i ro da stuzi gi'o te cerni
+.i ro da stuzi gi'o te donri
+.i ro da stuzi gi'o te vanci
+.i ro da stuzi gi'o te murse
+.i ro da stuzi gi'o te nicte
+.i ro da stuzi gi'o ve tcika
+
+.i ro da fasnu gi'o se tcika
+.i ro da fasnu gi'o se detri
+.i ro da stuzi gi'o te detri
+
+#math
+ro da namcu gi'o sumji
+ro da namcu gi'o se sumji
+ro da namcu gi'o te sumji
+
+ro da namcu gi'o pilji
+ro da namcu gi'o se pilji
+ro da namcu gi'o te pilji
+
+.i ro da prenu gi'o se cnino
+.i ro da ka'e cnino
+
+#sickness
+.i ro da danlu gi'o bilma
+.i ro da danlu gi'o se jinku
+.i ro da te bilma gi'o te jinku
+
+#health
+.i ro da danlu gi'o kanro
+
+#shapes
+#For now, all objects can be any shape.  This may not be good.
+.i je'u nai ro da dacti gi'o cukla
+.i je'u nai ro da dacti gi'o kurfa
+.i ro da mulna'u gi'o te kurfa
+.i je'u nai ro da dacti gi'o se kojna
+.i ro da se marji gi'o te kojna
+.i ro da mokca gi'o kojna
+.i je'u nai ro da dacti gi'o kubli
+.i ro da mulna'u gi'o se kubli
+.i ro da mulna'u gi'o te kubli
+.i je'u nai ro da dacti gi'o konju
+.i ro da se marji gi'o se konju
+.i ro da mokca gi'o te konju
+.i je'u nai ro da dacti gi'o bolci
+.i ro da se marji gi'o bolci
+ro da mokca gi'o se linji
+
+#textures
+.i je'u nai ro da dacti gi'o xutla
+.i je'u nai ro da dacti gi'o rufsu
+
+#jikca
+
+ro da prenu gi'o jikca
+ro da prenu gi'o se jikca
+ro da prenu gi'o penmi
+ro da prenu gi'o se penmi
+ro da stuzi gi'o te penmi
+ro da prenu gi'o vitke
+ro da prenu gi'o se vitke
+ro da stuzi gi'o te vitke
+
+#se balre
+.i ro dakfu cu dacti
+.i ro kinli cu dacti
+.i ro balre cu dacti
+.i ro dakfu cu se balre
+.i ro dakfu cu ka'e kinli
+.i ro denci cu ka'e kinli
+.i ro balre cu ka'e kinli
+.i ro se balre cu ka'e kinli
+.i ro jinci cu dacti
+.i ro jinci cu se balre
+.i ro da se dakfu gi'o se katna
+.i ro da se jinci gi'o se katna
+.i ro balre cu katna
+.i ro se balre cu katna
+.i ro da dacti gi'o se katna
+
+.i ro panje cu dacti
+
+.i ro da dacti gi'o jorne
+.i ro da dacti gi'o se jorne
+.i ro da stuzi gi'o te jorne
+
+.i ro da dacti gi'o sorcu
+.i ro da dacti gi'o se sorcu
+.i ro da dacti gi'o te sorcu
+
+
+# Lojbot additions picked up from IRC
+
+lo badna cu lojbo
+ro badna cu grute
+ro se badna cu se grute
+lo perli cu grute
+lo guzme cu grute
+le tcima be vi cu pluka
+le frodo cu se bingo
+lo bangrsumeri cu banmorsi
+la ktulux cu cizda'u
+le tsani cu blanu
+lo tcati cu xamgu
+le pitnanba cu jitfa
+le titnanba cu jitfa
+la kris cu nanmu
+la kris cu remna
+la kris cu lojbo
+la kris cu seljbobau
+la banlinoblis cu cinbadna
+la banlinoblis cu lojbo
+la banlinoblis cu prenu
+la banlinoblis cu remna
+la lojbot cu se sampla
+le lobypli cu prije
+la cmacis cu cmacynei
+la cmacis cu remna
+la cmacis cu prenu
+la klaid cu remna
+la klaid cu lojbo
+la klaid cu badna
+la klaid cu cinbadna
+la klaid cu prenu
+la cmacis cu mo
+lo manti ganti cu ranti
+le nu do fenki cu fenki
+lo nunsimta'a cu morsi
+ro vi ve pinka cu sipna
+le jbobau cu plana
+le mensi pe mi cu bilma
+lo bercribe cu tolzi'o
+lo'e pitnanba cu kukte
+ro lujvo .e ro gismu cu brivla
+ro brivla cu ka'e selbri
+le plise cu xunre
+la .lojban. cu runbau
+la .lojban. cu jbobau
+le cabdei cu mumdei
+le bavlamdjedi cu xavdei
+le bavlamdjedi be le bavlamdjedi cu zeldei
+lo broda brode poi na rodbo'e cu comdaidza
+lo bercribe cu cribe .iku'i la bercribe cu targri
+la xedja cu se xedja
+lo nu mi klama kei goi ko'a cu fasnu
+lo do kibro nirna cu masno
+ro pelge'u cu gerku
+loi lojbo cu kamlarcu
+loi ractu cu ci'omle
+le na ractu cu morsi
+lo mlatu cu sipna
+lo mi cinse cu pluja
+lo remna pilka cu go'a
+le kibro cu banli
+lo mi canxo cu se cortu
+le do karce cu mo
+le ninmu cu klama
+le karce cu mo
+lo pamoi lerfu pe lo valsi cu steci
+ro lujvo cu brivla
+lo nu mi pinxe lo ckafi cu mulno
+lo mi tuple cu se boxna
+le le broda ku broda ku cu broda
+lo nu tavla se pi'o po'o lo cnivla cu nandu
+la greic cu prenu
+la greic cu remna
+la greic cu mabla
+lo nu mutce bebna cu fasnu
+la mubyl cu bebna
+la kibro cu xajmi
+la .lojban. cu melbi
+lo darsi cu snada
+lo cmavo cu cmavla
+le djuno cu prenu
+lo nu ninzba lo samtci cu nandu
+lai tcima nixli cu sanga sera'a lo nu lo se pinji cu carvi
+lo bakni cu cmoni
+lo datka cu cmoni
+lo gerku cu cmoni
+lo mlatu cu cmoni
+la cizra cu cizra
+lo nu crisa cu mulno
+lo mi ganxo cu sliri zo'o
+la'e di'u to'e frili ki'u le za'i ro lo gubni bravau poi xamgu cu darno
+ro prenu cu bebna
+lo sovda be lo'e prenu cu kukte
+la cizra cu mlatu
+ro remna cu prenu
+lo'i remna cu barda
+lo mi zargu cu lenku
+le mi keslo'i cu melbi
+lo skami pe lo mi ckule cu spofu
+loi cmaci .e loi saske cu melbi
+lo nu cinse casnu cu rirci zo'o
+lo du'u ma kau se srana skina cu zdile
+lo nu kelci fa la donri ku joi la .klaid. cu zdile
+le do fonxa xu cu vasru
+le denci mikce cu gasnu
+le bikla cu bikla
+lo gerku cu gavgava
+lo karce cu xrududu
+lo karce cu putputpupu
+lo pilno be la gmail be'o xu cu jundi
+la dacr. cu samselpla
+lo tavla cu xajmi
+lo'e palci pluka be do cu mo
+la terpa pe'a plini cu mo
+le mi pinji cu barda
+lo du'u klani ma kau kei zu'u nai cu fatci
+le mi pinju cu misnu
+lo ko skami cu mebli
+lo cuxna samselpla cu cunso
+lo cunso samselpla cu cunso
+le karce cu spofu
+lo fasnu cu galfi
+.ila'a la srilermorna. cu go'i
+le solri cu tcegla
+lo kalci be mi cu litki
+le nakni cu sanga
+le nakni goi ko'a cu sanga
+le detri cu vajni
+la paiton .iu cu melbi
+lo basti dikca sorcu cu co'e
+ro brode cu broda
+ro da ninmu gi'o se tatru
+ro tatru cu xadypau
+ro tatru cu xadypau
+la timos cu bebna
+la kiris cu bebna
+la cizra cu bebna
+lo'i ro broda cu mo
+lo'i ro se broda cu mo

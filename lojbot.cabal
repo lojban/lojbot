@@ -1,0 +1,16 @@
+name:          lojbot
+version:       0.0
+synopsis:      Lojban bot
+description:   Just a lojban bot, does simple querying of words, translations, etc.
+category:      Language
+license:       BSD3
+author:        Chris Done <chrisdone@gmail.com>
+maintainer:    Chris Done <chrisdone@gmail.com>
+build-Depends: base,directory,haskell98
+build-type:    Simple
+cabal-Version: >= 1.2
+
+executable lojbot
+  main-is: Main.hs
+  build-depends: base==3.*,regex-compat,process,unix,haskell98,irc,network,lojban,containers,mtl,utf8-string
+  hs-source-dirs: src
