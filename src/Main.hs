@@ -384,61 +384,28 @@ coiDoi = ["be'e","co'o","coi","fe'o","fi'i","je'e","ju'i","ke'o","ki'e"
 
 -- | Main command list.
 commands :: [Cmd]
-commands = [cmdSearch,cmdValsi,cmdRafsi,cmdGloss,cmdDef,cmdSelma'o
+commands = [cmdValsi,cmdRafsi,cmdGloss,cmdDef,cmdSelma'o
            ,cmdTrans,cmdSelrafsi,cmdCLL,cmdLujvo,cmdGrammar,cmdCamxes
-           ,cmdMore,cmdHelp,cmdInfo]
+           ,cmdMore,cmdHelp]
 
 -----------------------------------------
 -- Lookup utilities
 
-cmdInfo :: Cmd
-cmdInfo = Cmd { cmdName = ["info","about"]
-              , cmdDesc = "shows information about the bot, links, etc."
-              , cmdProc = proc } where
-    proc _ = do
-      reply $ "Lojbot is written by Chris Done, in Haskell. \
-              \Source code here: http://github.com/chrisdone/lojbot/tree/master and \
-              \Support page here: http://chrisdone.lighthouseapp.com/projects/22016-lojbot/overview"
-
--- | Really generic search using the existing searches, prioritised.
-cmdSearch :: Cmd
-cmdSearch = Cmd { cmdName = ["search","query","q"]
-                , cmdDesc = "really generic search using the others, prioritised: v -> r -> g -> d"
-                , cmdProc = proc } where
-    proc string = do
-      valsi <- valsiLookup string
-      rafsi <- rafsiLookup string
-      gloss <- glossLookup string
-      def   <- defLookup string
-      selma'o <- if (any isUpper string) 
-                 then selma'oLookup string 
-                 else return []
-      let results = nub $ valsi ++ rafsi ++ gloss ++ def ++ selma'o
-      case results of
-        [] -> reply $ "no results for: " ++ string
-        xs -> replies (map showValsi xs)
-
 -- | Lookup a word from its gloss.
 cmdGloss :: Cmd
 cmdGloss = Cmd { cmdName = ["gloss","g"]
-               , cmdDesc = "find valsi with the given gloss"
+               , cmdDesc = "find gismu/cmavo with the given rafsi"
                , cmdProc = proc } where
-    proc gloss = do 
-      res <- glossLookup gloss
-      case res of
-        [] -> reply $ "no results for: " ++ gloss
-        xs -> replies (map showValsi xs)
-
-glossLookup :: String -> LojbotAction [JboValsi]
-glossLookup gloss = do
+    proc gloss = do
       db <- lift $ gets lojbotJboDB
       let gloss' = lower gloss
           find f = filterValsi db $ any f . valsiGloss
-          tries = [wild gloss,wild gloss . lower             -- wildcard
-                  ,(==gloss),(==gloss) . lower               -- full
+          tries = [(==gloss),(==gloss) . lower -- full
                   ,isPrefixOf gloss,isPrefixOf gloss . lower -- prefix
-                  ,isInfixOf gloss,isInfixOf gloss . lower]  -- infix
-      return $ nub $ join $ map find tries
+                  ,isInfixOf gloss,isInfixOf gloss . lower] -- infix
+      case nub $ join $ map find tries of
+        [] -> reply $ "no results for: " ++ gloss
+        xs -> replies (map showValsi xs)
 
 -- | Lookup a gismu/cmavo with the given rafsi.
 cmdRafsi :: Cmd
@@ -446,18 +413,14 @@ cmdRafsi = Cmd { cmdName = ["rafsi","r"]
                , cmdDesc = "find gismu/cmavo with the given rafsi"
                , cmdProc = proc } where
     proc rafsi = do
-      res <- rafsiLookup rafsi
-      case res of
+      db <- lift $ gets lojbotJboDB
+      let lookup r = filterValsi db (liftM2 (&&) match filter) where
+                 match = any (==r) . valsiRafsis
+                 filter = (/=LujvoType) . valsiType
+      case nub $ join $ map lookup (words rafsi) of
         [] -> reply $ "no entries found with the given rafsi: " ++ rafsi
         xs -> instReplies (length (words rafsi)) $ map showValsi xs
-
-rafsiLookup :: String -> LojbotAction [JboValsi]
-rafsiLookup rafsi = do
-  db <- lift $ gets lojbotJboDB
-  let lookup r = filterValsi db (liftM2 (&&) match filter) where
-                    match = any (==r) . valsiRafsis
-                    filter = (/=LujvoType) . valsiType
-  return $ nub $ join $ map lookup (words rafsi)
+    showLujvo v = valsiWord v ++ list "" ((" "++) . parens . head) (valsiGloss v)            
 
 -- | Find all lujvo with a selrafsi.
 cmdSelrafsi :: Cmd
@@ -488,22 +451,16 @@ cmdDef :: Cmd
 cmdDef = Cmd { cmdName = ["definition","d"]
              , cmdDesc = "search for valsi(s) by definition"
              , cmdProc = proc } where
-    proc string = do 
-      res <- defLookup string
-      case res of
+    proc string = do
+      db <- lift $ gets lojbotJboDB
+      let basic = defSub db string 
+          wild = defWildCard db string
+          terms = words string
+          basicWords = join $ map (defSub db) terms
+          wildWords = join $ map (defWildCard db) terms
+      case nub $ basic ++ wild ++ basicWords ++ wildWords of
         []     -> reply $ "no results for: " ++ string
         valsis -> replies $ map showValsi $ sort valsis
-
-
-defLookup :: String -> LojbotAction [JboValsi]
-defLookup string = do
-  db <- lift $ gets lojbotJboDB
-  let basic = defSub db string 
-      wild = defWildCard db string
-      terms = words string
-      basicWords = join $ map (defSub db) terms
-      wildWords = join $ map (defWildCard db) terms
-  return $ nub $ basic ++ wild ++ basicWords ++ wildWords
 
 -- | valsi lookup.
 cmdValsi :: Cmd
@@ -511,19 +468,14 @@ cmdValsi = Cmd
   { cmdName = ["valsi","v"]
   , cmdDesc = "lookup a gismu/cmavo/lujvo/fu'ivla"
   , cmdProc = proc } where
-    proc string = do 
-      res <- valsiLookup string
-      case res of
+    proc string = do
+      db <- lift $ gets lojbotJboDB
+      let terms = words string
+          basicWords = join $ map (valsi db) terms
+          wildWords = join $ map (valsiWildCard db) terms
+      case nub $ basicWords ++ wildWords of
         [] -> reply $ "no results for: " ++ string
-        xs -> instReplies (length (words string)) $ map showValsi xs
-
-valsiLookup :: String -> LojbotAction [JboValsi]
-valsiLookup string = do
-  db <- lift $ gets lojbotJboDB
-  let terms = words string
-      basicWords = join $ map (valsi db) terms
-      wildWords = join $ map (valsiWildCard db) terms
-  return $ nub $ basicWords ++ wildWords 
+        xs -> instReplies (length terms) $ map showValsi xs
 
 -- | gismu lookup via selma'o.
 cmdSelma'o :: Cmd
@@ -531,17 +483,12 @@ cmdSelma'o = Cmd { cmdName = ["selma'o","s"]
                  , cmdDesc = "list cmavo of a selma'o"
                  , cmdProc = proc } where
     proc selma'o = do
-      res <- selma'oLookup selma'o
-      case res of
+      db <- lift $ gets lojbotJboDB
+      case filterSelma'o db (lower selma'o) of
         [] -> reply "no such selma'o"
         xs -> replies $ split' (commas list) ++ (map showValsi xs)
             where list = map showCmavo xs
                   showCmavo w = "{" ++ valsiWord w ++ "}: " ++ (slashes $ valsiGloss w)
-
-selma'oLookup :: String -> LojbotAction [JboValsi]        
-selma'oLookup selma'o = do
-  db <- lift $ gets lojbotJboDB
-  return $ filterSelma'o db (lower selma'o) 
 
 -- | Command to display help.
 cmdHelp :: Cmd
@@ -820,7 +767,3 @@ trim = unwords . words
 -- | Make a string into simple lojban [a-z']+.
 lojban :: String -> String
 lojban = filter (isJust . match "[a-z']" . return) . lower
-
--- | Wildcard match?
-wild :: String -> String -> Bool
-wild = (isNothing .) . wildcard
