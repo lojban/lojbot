@@ -21,11 +21,9 @@ import Language.Lojban.Mlismu
 import Network
 import Network.IRC hiding (command)
 import Prelude hiding (log)
-import Safe
 import System
 import System.IO
 import System.Posix
-import System.Posix.Time
 import System.Process
 import Text.Regex
 
@@ -58,7 +56,6 @@ runBot = do
   startCamxes
   connectToIRC
   startMsgBuffer
-  startVoicer
   readIRCLines
 
 ------------------------------------------------------------------------------
@@ -130,34 +127,7 @@ msgBuffer = do
         wait = if n == 3 then 5 else 1
     liftIO $ hPutStrLn handle msg'
     logLn $ "-> " ++ msg'
-    liftIO $ threadDelay $ seconds * wait
-
-startVoicer :: Lojbot ()
-startVoicer = do
-  jbocre <- liftIO $ newMVar ("",M.empty)
-  modify $ \state -> state { lojbotJbocre = jbocre }
-  state <- get
-  liftIO $ forkIO $ evalStateT (voicer jbocre) state
-  return ()
-
-voicer :: MVar Jbocre -> Lojbot ()
-voicer var = forever $ do
-  -- decay and give voice every two minutes
-  liftIO $ threadDelay $ seconds
-  (topic,access) <- liftIO $ takeMVar var
-  newAccess <- mapM act $ M.toList access
-  liftIO $ putMVar var (topic,M.fromList newAccess)
-
-act :: (String,NickAccess) -> Lojbot (String,NickAccess)
-act user@(nick,(hasVoice,delay,time)) = do
-  now <- liftIO $ epochTime
-  if hasVoice
-     then let newDelay = max 120 (delay - 1)
-          in return (nick,(True,newDelay, time))
-     else if now - time > delay
-             then do mode "#jbosnu" nick "+v"
-                     return (nick,(True,delay,time))
-             else return user
+    liftIO $ threadDelay $ 1000 * 1000 * wait
 
 startCamxes :: Lojbot ()
 startCamxes = do
@@ -219,7 +189,7 @@ handleNickserv msg
 nickservMsg :: Message -> Maybe String
 nickservMsg msg =
     case msg of
-      Message (Just (NickName "NickServ" _ _)) "NOTICE" [nick',msg]
+      Message (Just (NickName "NickServ" _ _)) "NOTICE" [_,msg]
           -> Just msg
       _   -> Nothing
 
@@ -276,73 +246,7 @@ msgTo = list "" head . msgPs
 
 -- Actions to perform on private messages
 
-actions = [actDoi,actJbocre,actJoin,actRecord]
-
-actJoin :: LojbotAction ()
-actJoin = do
-  msg <- get
-  case msg of
-    Msg "JOIN" from ("#jbosnu":_) -> voice from
-    _                             -> return ()
-
-voice :: String -> LojbotAction ()
-voice from = do
-  var <- lift $ gets lojbotJbocre
-  (_,access) <- liftIO $ readMVar var
-  let voice = lift $ mode "#jbosnu" from "+v"
-  case M.lookup from access of
-    Just (True,_,_) -> voice
-    Nothing         -> voice
-    _               -> return ()
-
-actJbocre :: LojbotAction ()
-actJbocre = do
-  m@(Msg cmd from (to:text')) <- get
-  let text = skipSa $ join text'
-  when (to == "#jbosnu") $ do
-    when (any (==cmd) ["PRIVMSG","TOPIC"]) $ do
-       valid <- lift $ isValidLojban (translateAction text)
-       if not valid
-          then do from <- gets msgFrom
-                  lift $ mute from
-                  when (cmd == "TOPIC") $ lift $ restoreTopic
-          else lift $ updateTopic text
-
-skipSa :: String -> String
-skipSa = unwords . dropWhile (=="sa") . words
-
-translateAction :: String -> String
-translateAction text 
-    | isPrefixOf "\1ACTION " text = ("mi"++) $ drop (length "ACTION") $ clean text
-    | otherwise                   = text
-    where clean = filter (/='\1')
-
-updateTopic :: String -> Lojbot ()
-updateTopic topic = do
-  var <- gets lojbotJbocre
-  (_,access) <- liftIO $ takeMVar var
-  liftIO $ putMVar var (topic,access)
-
-restoreTopic :: Lojbot ()
-restoreTopic = do
-  var <- gets lojbotJbocre
-  (topic,_) <- liftIO $ readMVar var
-  when (topic /= "") $ irc $ Message Nothing "TOPIC" ["#jbosnu", topic]
-
-mute :: String -> Lojbot ()
-mute nick = do
-  var <- gets lojbotJbocre
-  (topic,access) <- liftIO $ takeMVar var
-  now <- liftIO $ epochTime
-  let update (_,n,t) = (False,n*2,now)
-      access' = M.insertWith (const $ update) nick (False,60,now) access
-  liftIO $ putMVar var (topic,access')
-  irc $ privmsg "#jbosnu" ("oi ko se jbobau doi la'o zoi " ++ nick ++ " zoi")
-  mode "#jbosnu" nick "-v"
-
-mode :: String -> String -> String -> Lojbot ()
-mode chan nick mode = do
-  irc $ Message Nothing "MODE" [chan, mode, nick]
+actions = [actDoi,actRecord]
 
 actRecord :: LojbotAction ()
 actRecord = do
@@ -359,13 +263,20 @@ actDoi :: LojbotAction ()
 actDoi = do
   text <- gets msgText
   nick <- lift $ config confNickName
-  prenu <- gets msgFrom
-  valid <- lift $ isValidLojban (translateAction text)
-  let text' = (translateAction text)
-      selbridi = unwords $ filter ((>=3) . length) $ words $ text'
+  valid <- lift $ isValidLojban text
+  let text' = text
+      selbri = unwords $ filter ((>=3) . length) $ words $ text'
   if valid && isCOI nick text' && (length (words text') > 2) 
-      then cmdProc cmdMlismu selbridi 
+      then mlismu selbri
       else return ()
+
+-- Reply with mlismu output
+mlismu rel = do
+  mli <- lift $ gets lojbotMlismu
+  out <- liftIO $ randomBridiRel mli $ words rel
+  case out of
+    Just bridi -> reply bridi
+    Nothing    -> reply "ii mi spofu i e'u ko tavla la kiris"
 
 isCOI :: String -> String -> Bool
 isCOI prenu = isJust . find match . tails . words where
@@ -379,29 +290,9 @@ coiDoi = ["be'e","co'o","coi","fe'o","fi'i","je'e","ju'i","ke'o","ki'e"
 -- Bot commands
 
 -- Main command list
-commands = [cmdValsi,cmdDef,cmdTrans,cmdGrammar,cmdVoice
+commands = [cmdValsi,cmdDef,cmdTrans,cmdGrammar
            ,cmdSelma'o,cmdRef,cmdCLL,cmdLujvo,cmdSelrafsi
-           ,cmdMlismu,cmdAddFatci,cmdMore,cmdHelp,cmdCamxes
-           ,cmdTime]
-
-cmdTime :: Cmd
-cmdTime = Cmd { cmdName = ["temci"]
-              , cmdDesc = "shows when you can next talk"
-              , cmdProc = proc } where
-    proc _ = do
-      var <- lift $ gets lojbotJbocre
-      (_,access) <- liftIO $ readMVar var
-      from <- gets msgFrom
-      case M.lookup from access of
-        Just (False,d,old) -> do now <- liftIO $ epochTime 
-                                 reply $ "you will be able to talk in " 
-                                         ++ mins (diff d old now)
-        _                  -> reply "you can talk"
-     where mins t = format ((read (show t) :: Int) `div` 60)
-           diff delay timestamp now = (timestamp + delay) - now
-           format n | n == 0    = "just under a minute"
-                    | n == 1    = "one minute"
-                    | otherwise = show n ++ " minutes"
+           ,cmdMore,cmdHelp,cmdCamxes]
 
 cmdCamxes :: Cmd
 cmdCamxes = Cmd { cmdName = ["valid"]
@@ -410,52 +301,8 @@ cmdCamxes = Cmd { cmdName = ["valid"]
     proc text = do
       valid <- lift $ isValidLojban text
       reply $ bool ("not valid: " ++ text) ("valid: " ++ text) valid
-
-cmdVoice :: Cmd
-cmdVoice = Cmd { cmdName = ["voice"]
-                  , cmdDesc = "give someone voice"
-                  , cmdProc = proc } where
-    proc person = do
-      from <- gets msgFrom
-      case words person of
-        [chan,nick] | from == "chrisdone" -> lift $ mode chan nick "+v"
-                    | otherwise           -> reply "denied"
-        _           -> reply "invalid parameters"
-
-cmdAddFatci :: Cmd
-cmdAddFatci = Cmd { cmdName = ["addfatci","add"]
-                  , cmdDesc = "add fatci(s) (`i' separated) to mlismu"
-                  , cmdProc = proc } where
-    proc fatci = do
-      mli <- lift $ gets lojbotMlismu
-      liftIO $ readFatci mli fatci
       nick <- gets msgFrom
       reply $ "valid fatci (if any) were added, " ++ nick
-
--- Reply with mlismu output
-cmdMlismu :: Cmd
-cmdMlismu = Cmd { cmdName = ["mlismu"]
-                , cmdDesc = "reply in lojban using mlismu"
-                , cmdProc = proc } where
-    proc rel = do
-      mli <- lift $ gets lojbotMlismu
-      out <- liftIO $ randomBridiRel mli $ words rel
-      case out of
-        Just bridi -> reply bridi
-        Nothing    -> reply "ii mi spofu i e'u ko tavla la kris"
-
--- Reply with some random grammatical lojbanic text and provide a translation
-cmdJbobau' :: Cmd
-cmdJbobau' = Cmd { cmdName = ["speak"]
-                 , cmdDesc = "reply with some random grammatical lojbanic text (and translate it--never works)"
-                 , cmdProc = proc } where
-    proc rel = do
-      mli <- lift $ gets lojbotMlismu
-      out <- liftIO $ randomBridiRel mli $ words rel
-      case out of
-        Just out -> do reply out
-                       cmdProc cmdTrans out
-        _        -> reply "mi spofu ui nai"
 
 -- Reply with some random grammatical lojbanic text
 cmdJbobau :: Cmd
@@ -524,7 +371,7 @@ cmdTrans = Cmd { cmdName = ["translate","jt","t"]
                , cmdDesc = "translate some lojban with jbofihe -x"
                , cmdProc = proc } where
     proc text = do
-      res <- liftIO $ translate text
+      res <- liftIO $ translate (newCmavo text)
       case res of
         Right (err,out) | out /= "" -> reply out
                         | otherwise -> reply "parse error"
@@ -750,7 +597,6 @@ data LojbotSt = LojbotSt
     , lojbotMore   :: [Mores]      -- More messages assoc list
     , lojbotJbobau :: Jbobau       -- Random lojbanic text generator
     , lojbotMlismu :: Mlismu       -- Mlismu handle
-    , lojbotJbocre :: MVar Jbocre
     , lojbotCamxes :: Maybe Camxes
     }
 type Camxes = MVar (Handle,Handle)
@@ -776,7 +622,6 @@ defState = LojbotSt
    , lojbotMore   = [] 
    , lojbotJbobau = undefined
    , lojbotMlismu = undefined
-   , lojbotJbocre = undefined
    , lojbotCamxes = undefined
    }
 
@@ -806,9 +651,7 @@ defConfig = Config
     , confServer   = "127.0.0.1"
     , confPort     = 6667
     , confChans    = [ChanAssign "#lojbot" True ["@","?"]
---                     ,ChanAssign "#haskell" True ["%"]
-                     ,ChanAssign "#lojban" True []
-                     ,ChanAssign "#jbosnu" False []]
+                     ,ChanAssign "#lojban" True []]
     , confAdmins   = ["chrisdone"] 
     , confJbov     = "jbovlaste.db"
     , confLogFile  = LogF "lojbot.log"
@@ -851,21 +694,56 @@ newCmavo = me'oi . la'oi . zo'oi where
     zo'oiR = "(^zo'oi ([^ ]+)| zo'oi ([^ ]+))"
     la'oi = flip (subRegex (mkRegex la'oiR)) " zo'e"
     la'oiR = "(^la'oi ([^ ]+)| la'oi ([^ ]+))"
-    me'oi = flip (subRegex (mkRegex la'oiR)) " zo'e"
+    me'oi = flip (subRegex (mkRegex me'oiR)) " zo'e"
     me'oiR = "(^me'oi ([^ ]+)| me'oi ([^ ]+))"
 
+-- | Match a regular expression against a string.
+match :: String -> String -> Maybe [String]
 match = matchRegex . mkRegex
+
+-- | braces "foo" = "{foo}"
+braces :: String -> String
 braces s = "{" ++ s ++ "}"
+
+-- | parens "foo" = "(foo)"
+parens :: String -> String
 parens s = "(" ++ s ++ ")"
+
+-- | commas ["foo","bar"] = "foo, bar"
+commas :: [String] -> String
 commas = intercalate ", " . filter (/="")
+
+-- | slashes ["foo","bar"] = "foo/bar".
+slashes :: [String] -> String
 slashes = intercalate "/" . filter (/="")
-list nil c [] = nil; list _ c v = c v
+
+-- | [a] equivalent for "maybe".
+list :: a -> ([b] -> a) -> [b] -> a
+list nil _    [] = nil
+list _   cons v  = cons v
+
+-- | alias ["Jonathan","Jon","J"] = "Jonathan (Jon, J)".
+alias :: [String] -> String
 alias (x:xs) = x ++ list "" ((" "++) . parens . commas) xs
+alias []     = ""
+
+-- | Update an association list's value with a new value (or insert).
+update :: (Eq a) => (a, b) -> [(a, b)] -> [(a, b)]
 update a = unionBy ((==) `on` fst) [a]
+
+-- | bool b a p =~ \"if p then a else b\".
+bool :: t -> t -> Bool -> t
 bool b a p = if p then a else b
+
+-- | Lowercase a string.
+lower :: String -> String
 lower = map toLower
+
+-- | Trim a string of whitespace on the edges or double spaces.
+trim :: String -> String
 trim = unwords . words
+
+-- | Make a string into simple lojban [a-z']+.
 lojban :: String -> String
-lojban = filter (\c -> isLetter c || c =='\'') . lower
-seconds = 1000 * 1000
-minutes = seconds * 60
+lojban = filter (isJust . match "[a-z']" . return) . lower
+
