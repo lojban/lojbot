@@ -385,7 +385,7 @@ coiDoi = ["be'e","co'o","coi","fe'o","fi'i","je'e","ju'i","ke'o","ki'e"
 -- | Main command list.
 commands :: [Cmd]
 commands = [cmdValsi,cmdDef,cmdTrans,cmdGrammar
-           ,cmdSelma'o,cmdRef,cmdCLL,cmdLujvo,cmdSelrafsi
+           ,cmdSelma'o,cmdCLL,cmdLujvo,cmdSelrafsi
            ,cmdMore,cmdHelp,cmdCamxes]
 
 -----------------------------------------
@@ -437,55 +437,17 @@ cmdValsi = Cmd
   { cmdName = ["valsi","v"]
   , cmdDesc = "lookup a gismu/cmavo/lujvo/fu'ivla"
   , cmdProc = proc } where
-    proc terms = do
+    proc string = do
       db <- lift $ gets lojbotJboDB
-      case nub $ valsi db terms ++ valsiWildCard db terms of
-        []    -> reply $ "no results for: " ++ terms
+      let basic = valsi db string
+          wild = valsiWildCard db string
+          terms = words string
+          basicWords = join $ map (valsi db) terms
+          wildWords = join $ map (valsiWildCard db) terms
+      case nub $ basic ++ wild ++ basicWords ++ wildWords of
+        []    -> reply $ "no results for: " ++ string
         valsi -> replies $ map showValsi valsi
 
--- | Lookup a definition.
-defLookup :: String -> LojbotAction [(JboValsiType,String,String)]
-defLookup w = do
-  db <- lift $ gets lojbotJboDB
-  let phrase = map (\v -> (valsiType v,w,showValsi v)) $ defSub db w
-      terms  = join $ map (map (\v -> (valsiType v,w,showValsi v)) . defSub db) $ words w
-  return $ phrase ++ if null phrase then terms else []
-
--- | Lookup the parts of a lujvo and display it.
-lookupLujvo :: String -> LojbotAction (Maybe (JboValsiType,String,String))
-lookupLujvo w =
-    case rafsis w' of
-      [] -> return Nothing
-      rs -> do db <- lift $ gets lojbotJboDB
-               Right (_,good) <- liftIO $ translate w'
-               let selrafsi = map (findSelrafsi db) rs
-               return $ Just $ (LujvoType,w,showLujvo (w/=w') w' rs selrafsi good)
-    where w' = fixClusters w
-
--- | Show a nonce lujvo.
-showLujvo :: Bool -> String -> [String] -> [Maybe JboValsi] -> String -> String
-showLujvo fixed w rs selrafsi good = 
-    "lujvo {" ++ w ++ "}" ++ bool "" " (fixed)" fixed ++ rafsis rs ++ selrafs selrafsi
-    ++ selgloss selrafsi ++ ": " ++ trans good
-  where rafsis = (", with rafsis "++) . braces . commas
-        selrafs = (", selrafsi "++) . braces . commas . catMaybes . map (fmap valsiWord)
-        selgloss = (' ':) . parens . commas . catMaybes . map (fmap (slashes . valsiGloss))
-        trans = fromMaybe "" . fmap head . match "/([^/]+)/"
-
--- | Describe a selma'o and link to the reference grammar.
-cmdRef :: Cmd
-cmdRef = Cmd { cmdName = ["ref"]
-             , cmdDesc = "describe a selma'o and link to the reference grammar"
-             , cmdProc = proc } where
-    proc selma'o = do
-      info <- liftIO $ selma'oInfo selma'o
-      db <- lift $ gets lojbotJboDB
-      case info of
-        Right inf -> reply (unwords $ lines inf)
-        Left e    -> case valsi db selma'o of 
-                       []    -> reply e
-                       (x:_) -> proc (fromMaybe "" $ valsiSelma'o x)
- 
 -- | gismu lookup via selma'o.
 cmdSelma'o :: Cmd
 cmdSelma'o = Cmd { cmdName = ["selma'o","s"]
@@ -588,16 +550,21 @@ cmdMore = Cmd { cmdName = ["more"]
 
 -- | Append " .. x more results" if there are more results in a list.
 more :: [String] -> String
+more []    = ""
 more later = " .. " ++ show (length later) 
              ++ " more result" ++ s where
     s = if length later > 1 then "s" else ""
 
 -- | Reply immediately or reply with " .. x more results".
 replies :: [String] -> LojbotAction ()
-replies (x:xs) | null xs   = reply x
-               | otherwise = do reply $ x ++ more xs
-                                setMore xs
-replies [] = return ()
+replies []  = return ()
+replies [x] = reply x
+replies xs  = let first = take 3 xs
+                  later = drop 3 xs
+                  now = init first
+                  end = last first ++ more later
+              in do mapM reply $ now ++ [end]
+                    setMore (drop 3 xs)
 
 -- | Set the list of more results for that channel/person.
 setMore :: [String] -> LojbotAction ()
