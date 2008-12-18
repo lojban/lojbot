@@ -384,12 +384,34 @@ coiDoi = ["be'e","co'o","coi","fe'o","fi'i","je'e","ju'i","ke'o","ki'e"
 
 -- | Main command list.
 commands :: [Cmd]
-commands = [cmdValsi,cmdDef,cmdTrans,cmdGrammar
+commands = [cmdValsi,cmdRafsi,cmdDef,cmdTrans,cmdGrammar
            ,cmdSelma'o,cmdCLL,cmdLujvo,cmdSelrafsi
            ,cmdMore,cmdHelp,cmdCamxes]
 
 -----------------------------------------
 -- Lookup utilities
+
+cmdRafsi :: Cmd
+cmdRafsi = Cmd { cmdName = ["rafsi"]
+               , cmdDesc = "find gismu/cmavo with the given rafsi"
+               , cmdProc = proc } where
+    proc rafsi = do
+      db <- lift $ gets lojbotJboDB
+      let lookup r = filterValsi db (liftM2 (&&) match filter) where
+                 match = any (==r) . valsiRafsis
+                 filter = (/=LujvoType) . valsiType
+      case nub $ join $ map lookup (words rafsi) of
+        [] -> reply $ "no entries found with the given rafsi: " ++ rafsi
+        xs -> instReplies (length (words rafsi)) $ map showValsi xs
+    showLujvo v = valsiWord v ++ list "" ((" "++) . parens . head) (valsiGloss v)            
+
+instReplies :: Int -> [String] -> LojbotAction ()
+instReplies n xs = let first = take n xs
+                       later = drop n xs
+                       now = init first
+                       end = last first ++ more later
+                   in do mapM reply $ now ++ [end]
+                         setMore (drop n xs)
 
 -- | Find all lujvo with a selrafsi.
 cmdSelrafsi :: Cmd
@@ -439,14 +461,12 @@ cmdValsi = Cmd
   , cmdProc = proc } where
     proc string = do
       db <- lift $ gets lojbotJboDB
-      let basic = valsi db string
-          wild = valsiWildCard db string
-          terms = words string
+      let terms = words string
           basicWords = join $ map (valsi db) terms
           wildWords = join $ map (valsiWildCard db) terms
-      case nub $ basic ++ wild ++ basicWords ++ wildWords of
-        []    -> reply $ "no results for: " ++ string
-        valsi -> replies $ map showValsi valsi
+      case nub $ basicWords ++ wildWords of
+        [] -> reply $ "no results for: " ++ string
+        xs -> mapM_ reply $ map showValsi xs
 
 -- | gismu lookup via selma'o.
 cmdSelma'o :: Cmd
@@ -539,10 +559,9 @@ cmdMore = Cmd { cmdName = ["more"]
       case lookup to replies of
         Nothing -> return ()
         Just [] -> return ()
-        Just xs -> let (now,later) = splitAt 3 xs
-                       few = init now
-                       end = last now ++ list "" more later
-                   in do mapM_ reply (few++[end])
+        Just xs -> let (now:later) = xs
+                       end = list "" more later
+                   in do mapM_ reply ([now ++ end])
                          setMore later
 
 ------------------------------------------------------------------------------ 
@@ -557,14 +576,9 @@ more later = " .. " ++ show (length later)
 
 -- | Reply immediately or reply with " .. x more results".
 replies :: [String] -> LojbotAction ()
-replies []  = return ()
-replies [x] = reply x
-replies xs  = let first = take 3 xs
-                  later = drop 3 xs
-                  now = init first
-                  end = last first ++ more later
-              in do mapM reply $ now ++ [end]
-                    setMore (drop 3 xs)
+replies []     = return ()
+replies [x]    = reply x
+replies (x:xs) = do reply $ x ++ more xs; setMore xs
 
 -- | Set the list of more results for that channel/person.
 setMore :: [String] -> LojbotAction ()
@@ -669,7 +683,7 @@ isValidLojban line = do
   let text = newCmavo $ filter (/=')') line
   var <- gets lojbotCamxes
   case var of
-    Nothing  -> undefined
+    Nothing  -> return False
     Just var -> liftIO $ do c@(in',out) <- takeMVar var
                             hPutStrLn in' text
                             line <- hGetLine out
