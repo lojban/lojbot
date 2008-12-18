@@ -26,6 +26,7 @@ import System.IO
 import System.Posix
 import System.Process
 import Text.Regex
+import WildCard
 
 ------------------------------------------------------------------------------
 -- Bot state types
@@ -421,30 +422,26 @@ cmdDef = Cmd { cmdName = ["definition","d"]
              , cmdProc = proc } where
     proc string = do
       db <- lift $ gets lojbotJboDB
-      case defSub db string ++ defWildCard db string of
-        []     -> reply $ show string ++ " not found"
+      let basic = defSub db string 
+          wild = defWildCard db string
+          terms = words string
+          basicWords = join $ map (defSub db) terms
+          wildWords = join $ map (defWildCard db) terms
+      case nub $ basic ++ wild ++ basicWords ++ wildWords of
+        []     -> reply $ "no results for: " ++ string
         valsis -> replies $ map showValsi $ sort valsis
 
 -- | valsi lookup.
 cmdValsi :: Cmd
 cmdValsi = Cmd
-  { cmdName = ["valsi","v","w"]
+  { cmdName = ["valsi","v"]
   , cmdDesc = "lookup a gismu/cmavo/lujvo/fu'ivla"
   , cmdProc = proc } where
     proc terms = do
-      let valsi = terms : (map lojban (words terms) ++ words terms)
-          word  (_,x,_) = x
-          desc  (_,_,x) = x
-          vtype (x,_,_) = x
-      valsi' <- join `fmap` mapM lookupValsi valsi
-      let valsiUniq = valsi \\ (map word valsi')
-      lujvo <- catMaybes `fmap` mapM lookupLujvo valsiUniq
-      dvalsi <- defLookup terms
-      let results  = list dvalsi id $ lujvo ++ valsi'
-          results' = map (\v -> filter ((==v) . word) results) valsi
-          results'' = sortBy (comparing vtype) $ nub $ join $ results'
-          out = map desc $ results''
-      list (reply $ show terms ++ " not found") replies out
+      db <- lift $ gets lojbotJboDB
+      case nub $ valsi db terms ++ valsiWildCard db terms of
+        []    -> reply $ "no results for: " ++ terms
+        valsi -> replies $ map showValsi valsi
 
 -- | Lookup a definition.
 defLookup :: String -> LojbotAction [(JboValsiType,String,String)]
@@ -453,14 +450,6 @@ defLookup w = do
   let phrase = map (\v -> (valsiType v,w,showValsi v)) $ defSub db w
       terms  = join $ map (map (\v -> (valsiType v,w,showValsi v)) . defSub db) $ words w
   return $ phrase ++ if null phrase then terms else []
-
--- | Lookup a lookup a gismu/cmavo/extant-lujvo/fu'ivla.
-lookupValsi :: String -> LojbotAction [(JboValsiType,String,String)]
-lookupValsi w = do
-  db <- lift $ gets lojbotJboDB
-  let simple = map (\v -> (valsiType v,w,showValsi v)) $ valsi db w
-      byGloss = map (\v -> (valsiType v,w,showValsi v)) $ nub $ join $ map (valsiByGloss db) $ w : words w
-  return $ simple ++ byGloss
 
 -- | Lookup the parts of a lujvo and display it.
 lookupLujvo :: String -> LojbotAction (Maybe (JboValsiType,String,String))
