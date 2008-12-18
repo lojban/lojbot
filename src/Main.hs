@@ -581,9 +581,6 @@ cmdCamxes = Cmd { cmdName = ["correct","c"]
     proc text = do
       valid <- lift $ isValidLojban text
       reply $ bool ("not valid: " ++ text) ("valid: " ++ text) valid
-      nick <- gets msgFrom
-      reply $ "valid fatci (if any) were added, " ++ nick
-
  
 -- | Check some lojban grammar.
 cmdGrammar :: Cmd
