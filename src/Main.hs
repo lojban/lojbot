@@ -384,15 +384,32 @@ coiDoi = ["be'e","co'o","coi","fe'o","fi'i","je'e","ju'i","ke'o","ki'e"
 
 -- | Main command list.
 commands :: [Cmd]
-commands = [cmdValsi,cmdRafsi,cmdDef,cmdTrans,cmdGrammar
-           ,cmdSelma'o,cmdCLL,cmdLujvo,cmdSelrafsi
-           ,cmdMore,cmdHelp,cmdCamxes]
+commands = [cmdValsi,cmdRafsi,cmdGloss,cmdDef,cmdSelma'o
+           ,cmdTrans,cmdSelrafsi,cmdCLL,cmdLujvo,cmdGrammar,cmdCamxes
+           ,cmdMore,cmdHelp]
 
 -----------------------------------------
 -- Lookup utilities
 
+-- | Lookup a word from its gloss.
+cmdGloss :: Cmd
+cmdGloss = Cmd { cmdName = ["gloss","g"]
+               , cmdDesc = "find gismu/cmavo with the given rafsi"
+               , cmdProc = proc } where
+    proc gloss = do
+      db <- lift $ gets lojbotJboDB
+      let gloss' = lower gloss
+          find f = filterValsi db $ any f . valsiGloss
+          tries = [(==gloss),(==gloss) . lower -- full
+                  ,isPrefixOf gloss,isPrefixOf gloss . lower -- prefix
+                  ,isInfixOf gloss,isInfixOf gloss . lower] -- infix
+      case nub $ join $ map find tries of
+        [] -> reply $ "no results for: " ++ gloss
+        xs -> replies (map showValsi xs)
+
+-- | Lookup a gismu/cmavo with the given rafsi.
 cmdRafsi :: Cmd
-cmdRafsi = Cmd { cmdName = ["rafsi"]
+cmdRafsi = Cmd { cmdName = ["rafsi","r"]
                , cmdDesc = "find gismu/cmavo with the given rafsi"
                , cmdProc = proc } where
     proc rafsi = do
@@ -404,14 +421,6 @@ cmdRafsi = Cmd { cmdName = ["rafsi"]
         [] -> reply $ "no entries found with the given rafsi: " ++ rafsi
         xs -> instReplies (length (words rafsi)) $ map showValsi xs
     showLujvo v = valsiWord v ++ list "" ((" "++) . parens . head) (valsiGloss v)            
-
-instReplies :: Int -> [String] -> LojbotAction ()
-instReplies n xs = let first = take n xs
-                       later = drop n xs
-                       now = init first
-                       end = last first ++ more later
-                   in do mapM reply $ now ++ [end]
-                         setMore (drop n xs)
 
 -- | Find all lujvo with a selrafsi.
 cmdSelrafsi :: Cmd
@@ -427,7 +436,7 @@ cmdSelrafsi = Cmd { cmdName = ["selrafsi","sr"]
 
 -- | Create a lujvo with vlatai.
 cmdLujvo :: Cmd
-cmdLujvo = Cmd { cmdName = ["lujvo"]
+cmdLujvo = Cmd { cmdName = ["lujvo","l"]
                , cmdDesc = "construct lujvos from selrafsis and rate them"
                , cmdProc = proc } where
     proc text = do
@@ -466,7 +475,7 @@ cmdValsi = Cmd
           wildWords = join $ map (valsiWildCard db) terms
       case nub $ basicWords ++ wildWords of
         [] -> reply $ "no results for: " ++ string
-        xs -> mapM_ reply $ map showValsi xs
+        xs -> instReplies (length terms) $ map showValsi xs
 
 -- | gismu lookup via selma'o.
 cmdSelma'o :: Cmd
@@ -484,14 +493,15 @@ cmdSelma'o = Cmd { cmdName = ["selma'o","s"]
 -- | Command to display help.
 cmdHelp :: Cmd
 cmdHelp = Cmd
-  { cmdName = ["help","h"]
-  , cmdDesc = "help: <command>\nshows help"
+  { cmdName = ["help","h","commands"]
+  , cmdDesc = desc
   , cmdProc = proc } where
     proc cmd = do
       if isJust $ match "^[a-zA-Z'_]+$" cmd
          then reply $ maybe "" showCmd $ find (any (==cmd) . cmdName) commands
          else reply $ "commands: " ++ (commas $ map (alias . cmdName) commands)
     showCmd cmd = alias (cmdName cmd) ++ ": " ++ cmdDesc cmd
+    desc = "show command list, or description of given command"
 
 -- | Lookup from the CLL.
 cmdCLL :: Cmd
@@ -512,7 +522,7 @@ cmdCLL = Cmd { cmdName = ["cll"]
 
 -- | camxes test for validity.
 cmdCamxes :: Cmd
-cmdCamxes = Cmd { cmdName = ["valid"]
+cmdCamxes = Cmd { cmdName = ["correct","c"]
                 , cmdDesc = "camxes test for validity"
                 , cmdProc = proc } where
     proc text = do
@@ -524,7 +534,7 @@ cmdCamxes = Cmd { cmdName = ["valid"]
  
 -- | Check some lojban grammar.
 cmdGrammar :: Cmd
-cmdGrammar = Cmd { cmdName = ["grammar","jg","g"]
+cmdGrammar = Cmd { cmdName = ["grammar","gr"]
                  , cmdDesc = "check/show grammar with jbofihe -ie"
                  , cmdProc = proc } where
     proc text = do
@@ -539,7 +549,7 @@ cmdGrammar = Cmd { cmdName = ["grammar","jg","g"]
 
 -- | Translate some lojban.
 cmdTrans :: Cmd
-cmdTrans = Cmd { cmdName = ["translate","jt","t"]
+cmdTrans = Cmd { cmdName = ["translate","t"]
                , cmdDesc = "translate some lojban with jbofihe -x"
                , cmdProc = proc } where
     proc text = do
@@ -550,8 +560,8 @@ cmdTrans = Cmd { cmdName = ["translate","jt","t"]
         Left e -> reply (list "" head $ lines e)
 
 -- | Display more results.
-cmdMore = Cmd { cmdName = ["more"]
-              , cmdDesc = "list cmavo of a selma'o"
+cmdMore = Cmd { cmdName = ["more","m"]
+              , cmdDesc = "show more results"
               , cmdProc = proc } where
     proc _ = do
       to <- gets replyTo
@@ -574,11 +584,19 @@ more later = " .. " ++ show (length later)
              ++ " more result" ++ s where
     s = if length later > 1 then "s" else ""
 
+-- | Reply immediately, and if over n stop there and add " .. x more results".
+instReplies :: Int -> [String] -> LojbotAction ()
+instReplies n xs = let first = take n xs
+                       later = drop n xs
+                       now = init first
+                       end = last first ++ more later
+                   in do mapM_ reply $ now ++ [end]
+                         setMore (drop n xs)
+
 -- | Reply immediately or reply with " .. x more results".
 replies :: [String] -> LojbotAction ()
-replies []     = return ()
-replies [x]    = reply x
 replies (x:xs) = do reply $ x ++ more xs; setMore xs
+replies []     = return ()
 
 -- | Set the list of more results for that channel/person.
 setMore :: [String] -> LojbotAction ()
