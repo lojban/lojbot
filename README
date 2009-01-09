@@ -1,0 +1,95 @@
+# Usage example:
+
+chris@chrisdesktop:~/haskell/lojbot$ lojbot lojbot.ini
+Reading jbovlaste database from jbovlaste.db ... done.
+Opening mlismu fatci from fatci.txt ... done.
+Starting camxes ... done.
+> t coi ro do
+(^coi /greetings/ ro /every/ /(of)/ do /you/^)
+> gr coi ro do ue mutce lojbo za'a
+(0[{coi <(1ro BOI)1 (1do ue)1> DO'U} {<mutce (1lojbo za'a)1> VAU}])0
+> gr coi ro do ue mutce lojbo za'a
+(0[{coi <(1ro BOI)1 (1do ue)1> DO'U} {<mutce (1lojbo za'a)1> VAU}])0
+> v mutce lojbo za'a
+gismu {mutce}, with rafsi {tce}, glossing to "much": x1 is
+much/extreme in property x2 (ka), towards x3 extreme/direction; x1 is,
+in x2, very x3. 
+gismu {lojbo}, with rafsi {lob, jbo}, glossing to "Lojbanic": x1
+reflects [Loglandic]/Lojbanic language/culture/nationality/community
+in aspect x2. 
+cmavo {za'a}, of selma'o UI2, glossing to "I observe": evidential: I
+observe. 
+> v za'e
+cmavo {za'e}, of selma'o BAhE, glossing to "nonce-word next":
+forethought nonce-word indicator; indicates next word is
+nonce-creation and may be nonstandard. 
+> s bahe
+{ba'e}: emphasize next, {za'e}: nonce-word next
+cmavo {ba'e}, of selma'o BAhE, glossing to "emphasize next":
+forethought emphasis indicator; indicates next word is especially
+emphasized. 
+cmavo {za'e}, of selma'o BAhE, glossing to "nonce-word next":
+forethought nonce-word indicator; indicates next word is
+nonce-creation and may be nonstandard. 
+> h
+commands: search (query, q), valsi (v), rafsi (r), gloss (g),
+definition (d), selma'o (s), translate (t), selrafsi (sr), cll,
+jvocuhadju (jv), lujvo (l), grammar (gr), correct (c), more (m), help
+(h, commands), info (about)
+> sr gletu
+cpanygle (ride), datpavycinglepre (straight), glebre (heat), glefi'a
+(pornography), glefra (orgasm), glepe'o (sexual partner), gleve'u
+(prostitute), mitcinglepre (MOTSS), mitpavycinglepre (homo), molgle
+(fellate), nu'ogle (virgin), pavycinglepre (non-bisexual),
+relcinglepre (bisexual)
+lujvo {cpanygle}, with rafsi {cpan, gle}, selrafsi {cpana, gletu}
+(upon, copulate/fuck/do), glossing to "ride", "mount": g1=c1
+rides/mounts/has sexual intercourse on top of g2=c2, in frame of
+reference/gravity c3. 
+lujvo {datpavycinglepre}, with rafsi {dat, pav, cin, gle, pre},
+selrafsi {drata, pa, cinse, gletu, prenu} (other, 1, copulate/fuck/do,
+person), glossing to "straight", "heterosexual": pr1 is (a)
+heterosexual. 
+lujvo {glebre}, with rafsi {gle, bre}, selrafsi {gletu, bredi}
+(copulate/fuck/do, ready), glossing to "heat", "horny", "randy",
+"musth", "estrus": x1 is in heat/estrus/musth; x1 is horny/randy. 
+lujvo {glefi'a}, with rafsi {gle, fi'a}, selrafsi {gletu, cfika}
+(copulate/fuck/do, fiction), glossing to "pornography", "erotica",
+"porn", "pornographer": c1 is pornography/erotica about
+plot/theme/subject/under convention c2 by author c3. 
+lujvo {glefra}, with rafsi {gle, fra}, selrafsi {gletu, frati}
+(copulate/fuck/do, react), glossing to "orgasm": f1 reacts with orgasm
+f2 to stimulus f3 under conditions f4; f1 orgasms. 
+lujvo {glepe'o}, with rafsi {gle, pe'o}, selrafsi {gletu, pendo}
+(copulate/fuck/do, friend), glossing to "sexual partner", "partner":
+p1=g2 is a sexual partner of p2=g1. 
+lujvo {gleve'u}, with rafsi {gle, ve'u}, selrafsi {gletu, vecnu}
+(copulate/fuck/do, sell), glossing to "prostitute": x1 is a prositute
+offering his/her services to x2 for x3 (payment). 
+lujvo {mitcinglepre}, with rafsi {mit, cin, gle, pre}, selrafsi
+{mintu, cinse, gletu, prenu} (same, copulate/fuck/do, person),
+glossing to "MOTSS", "non-heterosexual": p1 is a
+non-heterosexual/queer/MOTSS. 
+lujvo {mitpavycinglepre}, with rafsi {mit, pav, cin, gle, pre},
+selrafsi {mintu, pa, cinse, gletu, prenu} (same, 1, copulate/fuck/do,
+person), glossing to "homo", "dyke", "queer", "gay", "lesbian": pr1 is
+(a) homosexual. 
+> info
+Lojbot is written by Chris Done, in Haskell. Source code here:
+http://github.com/chrisdone/lojbot/tree/master and Support page here:
+http://chrisdone.lighthouseapp.com/projects/22016-lojbot/overview
+> jv mutce banli nobli
+tcebalno'i (9316), tceba'ino'i (9805)
+> l tcebalno'i
+lujvo {tcebalno'i}, with rafsi {tce, bal, no'i}, selrafsi {mutce,
+banli, nobli} (much, great, noble): extreme-great-noble thing(s)??
+gismu {mutce}, with rafsi {tce}, glossing to "much": x1 is
+much/extreme in property x2 (ka), towards x3 extreme/direction; x1 is,
+in x2, very x3. 
+gismu {banli}, with rafsi {bal, ba'i}, glossing to "great": x1 is
+great/grand in property x2 (ka) by standard x3. 
+gismu {nobli}, with rafsi {nol, no'i}, glossing to "noble": x1 is
+noble/aristocratic/elite/high-born/titled in/under
+culture/society/standard x2. 
+> quit
+chris@chrisdesktop:~/haskell/lojbot$ 
