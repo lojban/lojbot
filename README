@@ -1,3 +1,35 @@
+# Setup
+
+* Default configuration is a commandline program.
+
+* To change configuration, create .ini file and specify on lojbot commandline:
+
+[MISC]
+jbov = jbovlaste.db
+mlismu = fatci.txt
+mode = CmdLine # change to IRCBot for irc bot version
+
+[IRCBOT]
+nick = lojbanbot
+server = irc.freenode.net
+port = 6667
+nickservpass = something
+log = LogStdout # LogF "lojbot.log" -- typical for IRCBot mode
+# must follow this strict format
+chans = [ChanAssign {chanName = "#lojbot", chanCanReply = True, chanPrefix = ["!","?"]}]
+
+Example:
+
+$ lojbot lojbot.ini
+Reading jbovlaste database from jbovlaste.db ... done.
+Opening mlismu fatci from fatci.txt ... done.
+Starting camxes ... done.
+> 
+
+* To use as IRCBot, alter above commented out settings appropriately.
+
+* Type 'help' and hit enter to get started.
+
 # Usage example:
 
 chris@chrisdesktop:~/haskell/lojbot$ lojbot lojbot.ini

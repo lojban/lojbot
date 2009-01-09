@@ -1,7 +1,7 @@
 name:          lojbot
 version:       0.0
 synopsis:      Lojban bot
-description:   Just a lojban bot, does simple querying of words, translations, etc.
+description:   Just a lojban bot, does simple querying of words, translations, etc. works as IRC bot or commandline program, see README for instructions
 category:      Language
 license:       BSD3
 author:        Chris Done <chrisdone@gmail.com>
@@ -9,8 +9,10 @@ maintainer:    Chris Done <chrisdone@gmail.com>
 build-Depends: base,directory,haskell98
 build-type:    Simple
 cabal-Version: >= 1.2
+Extra-Source-Files: README, LICENSE
+Data-Files: fatci.txt, jbovlaste.db, sample-config.ini
 
 executable lojbot
   main-is: Main.hs
-  build-depends: base==3.*,regex-compat,process,unix,haskell98,irc,network,lojban,containers,mtl,utf8-string,ConfigFile,readline
+  build-depends: base==3.*,regex-compat,process,unix,haskell98,irc,network,lojban,containers,mtl,utf8-string,ConfigFile,readline,filepath,directory
   hs-source-dirs: src
