@@ -12,5 +12,5 @@ cabal-Version: >= 1.2
 
 executable lojbot
   main-is: Main.hs
-  build-depends: base==3.*,regex-compat,process,unix,haskell98,irc,network,lojban,containers,mtl,utf8-string
+  build-depends: base==3.*,regex-compat,process,unix,haskell98,irc,network,lojban,containers,mtl,utf8-string,ConfigFile,readline
   hs-source-dirs: src

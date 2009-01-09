@@ -1,10 +1,14 @@
+{-# LANGUAGE FlexibleInstances #-}
 module Main where
 
 import qualified Codec.Binary.UTF8.String as UTF8
+import Control.Applicative
 import Control.Arrow
 import Control.Concurrent
 import Control.Monad.State
+import Control.Monad.Error
 import Data.Char
+import qualified Data.ConfigFile as C
 import Data.Function
 import Data.List
 import Data.Map (Map)
@@ -22,8 +26,10 @@ import Network
 import Network.IRC hiding (command)
 import Prelude hiding (log)
 import System
+import System.Console.Readline
 import System.IO
 import System.Posix
+import System.Posix.Time
 import System.Process
 import Text.Regex
 import WildCard
@@ -73,34 +79,17 @@ defState = LojbotSt
 -- | Lojbot configuration.
 data Config = Config
     { confNickName :: String        -- ^  Main nickname to use.
-    , confAltNicks :: [String]      -- ^  Alternate nicks to use.
     , confNickPass :: String        -- ^  Nickserv password.
     , confServer   :: String        -- ^  Server host.
     , confPort     :: Integer       -- ^  Server port.
     , confChans    :: [ChanAssign]  -- ^  Channels to join, and options.
-    , confAdmins   :: [String]      -- ^  Admin usernames.
-    , confJbov     :: FilePath      -- ^  Jbovlaste database path.
     , confLogFile  :: LogH          -- ^  How to log.
-    , confTrainDat :: FilePath      -- ^  Training data path.
+    , confJbov     :: FilePath      -- ^  Jbovlaste database path.
     , confMlismu   :: FilePath      -- ^  Mlismu fatci file.
+    , confMode     :: Mode          -- ^  Running mode.
     } deriving (Read,Show)
 
--- | Default configuration
-defConfig :: Config
-defConfig = Config
-    { confNickName = "lojbot"
-    , confNickPass = "3281h9k"
-    , confAltNicks = ["lojbot_","lojbot__"]
-    , confServer   = "127.0.0.1"
-    , confPort     = 6667
-    , confChans    = [ChanAssign "#lojbot" True ["@","?"]
-                     ,ChanAssign "#lojban" True []]
-    , confAdmins   = ["chrisdone"] 
-    , confJbov     = "jbovlaste.db"
-    , confLogFile  = LogF "lojbot.log"
-    , confTrainDat = "lojban.log"
-    , confMlismu = "fatci.txt"
-    }
+data Mode = IRCBot | CmdLine deriving (Read,Show,Eq)
 
 ------------------------------------------------------------------------------
 -- Main start-up actions
@@ -110,11 +99,25 @@ main :: IO ()
 main = do
   args <- getArgs
   case args of
-    [conf] -> do conf <- readFile conf
-                 case read conf of
-                   Just conf -> start conf
-                   _ -> error "unable to parse config file"
-    _ -> start defConfig
+    [conf] -> readConfig conf >>= either (error . show) start
+    _      -> error "need a config file"
+
+instance Monad m => Applicative (ErrorT C.CPError m) where
+    pure = return; (<*>) = ap
+
+readConfig :: String -> IO (Either (C.CPErrorData,String) Config)
+readConfig filePath = runErrorT $ do
+  config <- join $ liftIO $ C.readfile C.emptyCP filePath
+  let irc = C.get config "IRCBOT"
+      port = C.get config "IRCBOT" "port"
+      misc = C.get config "MISC"
+  Config <$> irc "nick" <*>  irc "nickservpass" <*> irc "server" <*> port
+         <*> (irc "chans" >>= tryGet "invalid channel list")
+         <*> (irc "log" >>= tryGet "invalid log specification")
+         <*> misc "jbov"
+         <*> misc "mlismu"
+         <*> (misc "mode" >>= tryGet "invalid mode")
+      where tryGet msg = list (fail msg) (return . fst . head) . reads
 
 -- | Start up for inside ghci.
 start :: Config -> IO ()
@@ -129,9 +132,10 @@ runBot = do
   openJbovlaste
   openMlismu
   startCamxes
-  connectToIRC
-  startMsgBuffer
-  readIRCLines
+  mode <- config confMode
+  case mode of
+    IRCBot  -> do connectToIRC; startMsgBuffer; readIRCLines
+    CmdLine -> readCmdLines
 
 ------------------------------------------------------------------------------
 -- Initialisation
@@ -153,15 +157,6 @@ openMlismu = do
   doing $ "Opening mlismu fatci from " ++ path
   Right mli <- liftIO $ newMlismu path
   modify $ \state -> state { lojbotMlismu = mli }
-  logLn "done."
-
--- | Open jbobau generator.
-openJbobau :: Lojbot ()
-openJbobau = do
-  path <- config confTrainDat
-  doing $ "Reading jbobau training data from " ++ path
-  Right jbo <- liftIO $ newJbobau path
-  modify $ \state -> state { lojbotJbobau = jbo }
   logLn "done."
 
 -- | Open the jbovlaste database.
@@ -189,11 +184,55 @@ startMsgBuffer :: Lojbot ()
 startMsgBuffer = do
   chan <- liftIO newChan
   modify $ \state -> state { lojbotBuffer = chan }
+  forkLojbot msgBuffer
+
+forkLojbot :: Lojbot () -> Lojbot ()
+forkLojbot m = do
   state <- get
-  liftIO $ do forkIO $ evalStateT msgBuffer state; return ()
+  liftIO $ do forkIO $ evalStateT m state; return ()
+
+forkLojbotAction :: LojbotAction () -> LojbotAction ()
+forkLojbotAction m = do
+  state <- get
+  lift $ forkLojbot $ evalStateT m state; return ()
 
 -- | The message buffer reads messages and delays 
 --   every three messages to stop flooding.
+{-
+
+New method. Unstable/not yet stood test of time.
+Only allow 512 bytes per five seconds. 
+Sleep one second every four seconds.
+
+-}
+msgBuffer :: Lojbot ()
+msgBuffer = do
+  handle <- gets lojbotIRC
+  buffer <- gets lojbotBuffer
+  startTime <- liftIO epochTime
+  let go lastTime charsSoFar (n:xs) = do
+        msg <- liftIO $ readChan buffer
+        let msg' = showMessage msg
+            msgChars = length msg' + 1
+            totalChars = charsSoFar + msgChars
+            sendMsg t cs = do liftIO $ do threadDelay $ 1000 * 1000 * n
+                                          hPutStrLn handle msg'
+                              logLn $ "-> " ++ msg'
+                              go t cs xs
+        nowTime <- liftIO epochTime
+        case nowTime - lastTime of
+          d | d > 5             -> sendMsg nowTime msgChars
+            | totalChars <= 512 -> sendMsg lastTime totalChars
+            | otherwise         -> do liftIO $ do unGetChan buffer msg
+                                                  threadDelay $ 1000 * 1000
+                                      go lastTime charsSoFar xs
+  go startTime 0 $ cycle [0,0,1]
+  
+{-
+
+Old method. Stable/stood test of time.
+It's simple and stupid, but works, but is also annoying.
+
 msgBuffer :: Lojbot ()
 msgBuffer = do
   handle <- gets lojbotIRC
@@ -206,6 +245,7 @@ msgBuffer = do
     liftIO $ hPutStrLn handle msg'
     logLn $ "-> " ++ msg'
     liftIO $ threadDelay $ 1000 * 1000 * wait
+-}
 
 -- | Starts the camxes Java process.
 startCamxes :: Lojbot ()
@@ -218,7 +258,7 @@ startCamxes = do
 -- | Opens the java process.
 connectCamxes :: IO (Maybe Camxes)
 connectCamxes = do
-  pipe <- catch (Right `fmap` runInteractiveCommand "camxes -t")
+  pipe <- catch (Right <$> runInteractiveCommand "camxes -t")
                 (const $ return $ Left "Broken pipe.")
   case pipe of
     Left e -> return Nothing
@@ -230,12 +270,33 @@ connectCamxes = do
 
 ------------------------------------------------------------------------------
 -- Message handling
- 
+
+-- | Extract lines from command line and handle them as commands.
+readCmdLines :: Lojbot ()
+readCmdLines = do
+  maybeLine <- liftIO $ readline "> "
+  case maybeLine of 
+    Nothing               -> return () 
+    Just line | end       -> return ()
+              | otherwise -> do liftIO $ addHistory line
+                                handleCmdLine line
+                                readCmdLines
+              where end = any (==line) ["quit","exit"]
+
+handleCmdLine :: String -> Lojbot ()
+handleCmdLine line = do
+  case words line of
+    (cmd:args) -> case find (any (==cmd) . cmdName) commands of
+                    Just command -> let arg = unwords args
+                                    in evalStateT (cmdProc command arg) (Msg "PRIVMSG" "" ["",""])
+                    Nothing      -> return ()
+    _          -> return ()
+
 -- | Extract lines and pass them to the handler.
 readIRCLines :: Lojbot ()
 readIRCLines = do
   handle <- gets lojbotIRC
-  lines <- lines `fmap` liftIO (hGetContents handle)
+  lines <- lines <$> liftIO (hGetContents handle)
   mapM_ lineHandler lines
 
 -- | Attempt to decode a valid IRC message, logging unhandled ones.
@@ -385,11 +446,37 @@ coiDoi = ["be'e","co'o","coi","fe'o","fi'i","je'e","ju'i","ke'o","ki'e"
 -- | Main command list.
 commands :: [Cmd]
 commands = [cmdSearch,cmdValsi,cmdRafsi,cmdGloss,cmdDef,cmdSelma'o
-           ,cmdTrans,cmdSelrafsi,cmdCLL,cmdLujvo,cmdGrammar,cmdCamxes
+           ,cmdTrans,cmdSelrafsi,cmdCLL,cmdVlatai,cmdLujvo,cmdGrammar,cmdCamxes
            ,cmdMore,cmdHelp,cmdInfo]
 
 -----------------------------------------
 -- Lookup utilities
+
+cmdLujvo :: Cmd
+cmdLujvo = Cmd { cmdName = ["lujvo","l"]
+               , cmdDesc = "deconstruct a lujvo"
+               , cmdProc = proc } where
+    proc string = do
+      lines <- lujvoLookup string
+      case lines of
+        [] -> reply $ "invalid lujvo: " ++ string
+        xs -> replies $ map showValsi xs
+
+lujvoLookup :: String -> LojbotAction [JboValsi]
+lujvoLookup string = do
+  let word = list "" head $ words string
+  case rafsis word of 
+    [] -> return []
+    rs -> do selrafs <- map head . filter (/=[]) <$> mapM rafsiLookup rs
+             valsi <- makeLujvo' word rs selrafs
+             return $ valsi : selrafs
+
+makeLujvo' :: String -> [String] -> [JboValsi] -> LojbotAction JboValsi
+makeLujvo' word rafsis selrafsis = do
+  def <- clean . either (const "") snd <$> (liftIO $ translate word)
+  return $ makeLujvo word rafsis selrafsis def
+      where clean = flip (subRegex r) "\\1"
+            r = mkRegex "^\\[<<[^ ]+ /(.*)/>>\\]$"
 
 cmdInfo :: Cmd
 cmdInfo = Cmd { cmdName = ["info","about"]
@@ -410,10 +497,11 @@ cmdSearch = Cmd { cmdName = ["search","query","q"]
       rafsi <- rafsiLookup string
       gloss <- glossLookup string
       def   <- defLookup string
+      lujvo <- lujvoLookup string
       selma'o <- if (any isUpper string) 
                  then selma'oLookup string 
                  else return []
-      let results = nub $ valsi ++ rafsi ++ gloss ++ def ++ selma'o
+      let results = nub $ valsi ++ rafsi ++ gloss ++ def ++ selma'o ++ lujvo
       case results of
         [] -> reply $ "no results for: " ++ string
         xs -> replies (map showValsi xs)
@@ -432,13 +520,13 @@ cmdGloss = Cmd { cmdName = ["gloss","g"]
 glossLookup :: String -> LojbotAction [JboValsi]
 glossLookup gloss = do
       db <- lift $ gets lojbotJboDB
-      let gloss' = lower gloss
-          find f = filterValsi db $ any f . valsiGloss
-          tries = [wild gloss,wild gloss . lower             -- wildcard
-                  ,(==gloss),(==gloss) . lower               -- full
-                  ,isPrefixOf gloss,isPrefixOf gloss . lower -- prefix
-                  ,isInfixOf gloss,isInfixOf gloss . lower]  -- infix
-      return $ nub $ join $ map find tries
+      let find f = filterValsi db $ any f . valsiGloss
+          tries g = [wild g,wild g . lower             -- wildcard
+                    ,(==g),(==g) . lower               -- full
+                    ,isPrefixOf g,isPrefixOf g . lower -- prefix
+                    ,isInfixOf g,isInfixOf g . lower]  -- infix
+          search = nub . (find =<<) . (tries =<<) . argsInc 
+      return $ search gloss
 
 -- | Lookup a gismu/cmavo with the given rafsi.
 cmdRafsi :: Cmd
@@ -449,7 +537,7 @@ cmdRafsi = Cmd { cmdName = ["rafsi","r"]
       res <- rafsiLookup rafsi
       case res of
         [] -> reply $ "no entries found with the given rafsi: " ++ rafsi
-        xs -> instReplies (length (words rafsi)) $ map showValsi xs
+        xs -> instReplies (length $ words rafsi) $ map showValsi xs
 
 rafsiLookup :: String -> LojbotAction [JboValsi]
 rafsiLookup rafsi = do
@@ -471,9 +559,9 @@ cmdSelrafsi = Cmd { cmdName = ["selrafsi","sr"]
         xs -> replies $ commas (map showLujvo xs) : map showValsi xs
     showLujvo v = valsiWord v ++ list "" ((" "++) . parens . head) (valsiGloss v)
 
--- | Create a lujvo with vlatai.
-cmdLujvo :: Cmd
-cmdLujvo = Cmd { cmdName = ["lujvo","l"]
+-- | Create a lujvo with jvocuhadju.
+cmdVlatai :: Cmd
+cmdVlatai = Cmd { cmdName = ["jvocuhadju","jv"]
                , cmdDesc = "construct lujvos from selrafsis and rate them"
                , cmdProc = proc } where
     proc text = do
@@ -498,12 +586,10 @@ cmdDef = Cmd { cmdName = ["definition","d"]
 defLookup :: String -> LojbotAction [JboValsi]
 defLookup string = do
   db <- lift $ gets lojbotJboDB
-  let basic = defSub db string 
-      wild = defWildCard db string
-      terms = words string
+  let terms = filter (not . badWild) $ string : words string
       basicWords = join $ map (defSub db) terms
       wildWords = join $ map (defWildCard db) terms
-  return $ nub $ basic ++ wild ++ basicWords ++ wildWords
+  return $ nub $ basicWords ++ wildWords
 
 -- | valsi lookup.
 cmdValsi :: Cmd
@@ -520,7 +606,7 @@ cmdValsi = Cmd
 valsiLookup :: String -> LojbotAction [JboValsi]
 valsiLookup string = do
   db <- lift $ gets lojbotJboDB
-  let terms = words string
+  let terms = args string
       basicWords = join $ map (valsi db) terms
       wildWords = join $ map (valsiWildCard db) terms
   return $ nub $ basicWords ++ wildWords 
@@ -588,7 +674,7 @@ cmdGrammar = Cmd { cmdName = ["grammar","gr"]
                  , cmdDesc = "check/show grammar with jbofihe -ie"
                  , cmdProc = proc } where
     proc text = do
-      res <- liftIO $ grammar text
+      res <- liftIO $ grammar (newCmavo text)
       case res of
         Right (err,out) | out /= "" -> reply out
                         | otherwise -> reply "parse error"
@@ -617,15 +703,22 @@ cmdMore = Cmd { cmdName = ["more","m"]
       to <- gets replyTo
       replies <- lift $ gets lojbotMore
       case lookup to replies of
-        Nothing -> return ()
-        Just [] -> return ()
-        Just xs -> let (now:later) = xs
-                       end = list "" more later
-                   in do mapM_ reply ([now ++ end])
-                         setMore later
+        Just msgs@(now:later) -> do 
+               mode <- lift $ config confMode
+               case mode of
+                 IRCBot  -> let end = list "" more later
+                            in do setMore later; doReplies [now++end]
+                 CmdLine -> let later = drop 10 msgs
+                                now = take 10 msgs
+                                end = list "" more later
+                            in do setMore later; doReplies $ now ++ [end]
+        _ -> return ()
 
 ------------------------------------------------------------------------------ 
 -- Lojbot action utilities
+
+delayedReply l = do liftIO $ threadDelay $ 1000 * 200
+                    reply l
 
 -- | Append " .. x more results" if there are more results in a list.
 more :: [String] -> String
@@ -636,16 +729,30 @@ more later = " .. " ++ show (length later)
 
 -- | Reply immediately, and if over n stop there and add " .. x more results".
 instReplies :: Int -> [String] -> LojbotAction ()
-instReplies n xs = let first = take n xs
-                       later = drop n xs
-                       now = init first
-                       end = last first ++ more later
-                   in do mapM_ reply $ now ++ [end]
-                         setMore (drop n xs)
+instReplies n xs = do
+  let first = take n xs
+      later = drop n xs
+      now = init first
+      end = last first ++ more later
+  setMore (drop n xs)
+  doReplies $ now ++ [end]
+
+doReplies :: [String]-> LojbotAction ()
+doReplies msgs = do
+  mode <- lift $ config confMode
+  case mode of
+    IRCBot  -> forkLojbotAction $ mapM_ delayedReply msgs
+    CmdLine -> mapM_ reply msgs
 
 -- | Reply immediately or reply with " .. x more results".
 replies :: [String] -> LojbotAction ()
-replies (x:xs) = do reply $ x ++ more xs; setMore xs
+replies msgs@(x:xs) = do
+  mode <- lift $ config confMode
+  case mode of
+    IRCBot  -> do reply $ x ++ more xs; setMore xs
+    CmdLine -> let now = take 10 msgs
+                   later = drop 10 msgs
+               in do mapM_ reply now; setMore later
 replies []     = return ()
 
 -- | Set the list of more results for that channel/person.
@@ -659,7 +766,11 @@ setMore xs = do
 reply :: String -> LojbotAction ()
 reply msg = do
   to <- gets replyTo
-  lift $ mapM_ (irc . privmsg to) $ split' msg
+  mode <- lift $ config confMode
+  case mode of
+    IRCBot  -> lift $ mapM_ (irc . privmsg to) $ split' msg
+    CmdLine -> liftIO $ do putStrLn (filter (/='\n') msg)
+                           hFlush stdout
 
 -- | Filter all commands matching a name.
 cmds :: String -> [Cmd]
@@ -760,7 +871,7 @@ isValidLojban line = do
 
 -- | Replace new cmavo zo'oi, la'oi and me'oi with zo'e.
 newCmavo :: String -> String
-newCmavo = me'oi . la'oi . zo'oi where
+newCmavo = me'oi . la'oi . zo'oi . filter (/=')') where
     zo'oi = flip (subRegex (mkRegex zo'oiR)) " zo'e"
     zo'oiR = "(^zo'oi ([^ ]+)| zo'oi ([^ ]+))"
     la'oi = flip (subRegex (mkRegex la'oiR)) " zo'e"
@@ -821,3 +932,14 @@ lojban = filter (isJust . match "[a-z']" . return) . lower
 -- | Wildcard match?
 wild :: String -> String -> Bool
 wild = (isNothing .) . wildcard
+
+-- | Get arguments for a command.
+args :: String -> [String]
+args = filter (not . badWild) . words
+
+-- | Get arguments for a command.
+argsInc :: String -> [String]
+argsInc x = filter (not . badWild) $ x : words x
+
+badWild :: String -> Bool
+badWild w = all (=='*') w || (any (=='*') w && length (filter (/='*') w) < 3)
