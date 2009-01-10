@@ -1,9 +1,10 @@
 {-# LANGUAGE FlexibleInstances #-}
 module Main where
 
-import qualified Codec.Binary.UTF8.String as UTF8
+import Codec.Binary.UTF8.String (encodeString,decodeString)
 import Control.Applicative
 import Control.Arrow
+import Control.Exception (evaluate)
 import Control.Concurrent
 import Control.Monad.State
 import Control.Monad.Error
@@ -26,13 +27,16 @@ import Network
 import Network.IRC hiding (command)
 import Prelude hiding (log)
 import System
+import System.Directory
 import System.Console.Readline
+import System.FilePath
 import System.IO
 import System.Posix
 import System.Posix.Time
 import System.Process
 import Text.Regex
 import WildCard
+import Paths_lojbot
 
 ------------------------------------------------------------------------------
 -- Bot state types
@@ -98,12 +102,21 @@ data Mode = IRCBot | CmdLine deriving (Read,Show,Eq)
 main :: IO ()
 main = do
   args <- getArgs
+  prog <- getProgName
   case args of
     [conf] -> readConfig conf >>= either (error . show) start
-    _      -> error "need a config file"
+    []     -> do dir <- getAppUserDataDirectory prog
+                 let config = dir </> "config.ini"
+                 exists <- doesFileExist config
+                 if exists
+                    then readConfig config >>= either (error . show) start
+                    else getDataFileName "sample-config.ini" >>= readConfig >>= either (error . show) start
+    _      -> error $ "expected: " ++ prog ++ "<config.ini>"
 
 instance Monad m => Applicative (ErrorT C.CPError m) where
     pure = return; (<*>) = ap
+instance Monad m => Alternative (ErrorT C.CPError m) where
+    empty = mzero; (<|>) = mplus
 
 readConfig :: String -> IO (Either (C.CPErrorData,String) Config)
 readConfig filePath = runErrorT $ do
@@ -111,11 +124,12 @@ readConfig filePath = runErrorT $ do
   let irc = C.get config "IRCBOT"
       port = C.get config "IRCBOT" "port"
       misc = C.get config "MISC"
+      res k f = misc k <|> liftIO (getDataFileName f)
   Config <$> irc "nick" <*>  irc "nickservpass" <*> irc "server" <*> port
          <*> (irc "chans" >>= tryGet "invalid channel list")
          <*> (irc "log" >>= tryGet "invalid log specification")
-         <*> misc "jbov"
-         <*> misc "mlismu"
+         <*> res "jbov" "jbovlaste.db"
+         <*> res "mlismu" "fatci.txt"
          <*> (misc "mode" >>= tryGet "invalid mode")
       where tryGet msg = list (fail msg) (return . fst . head) . reads
 
@@ -653,7 +667,7 @@ cmdCLL = Cmd { cmdName = ["cll"]
         Just res | res /= [] -> replies $ map showRes res
         _ -> reply $ "no results for \"" ++ text ++ "\""
       where showRes (url,desc) = url ++ " : " ++ desc
-            text' = UTF8.encodeString $ filter ok $ UTF8.decodeString text
+            text' = encodeString $ filter ok $ decodeString text
             ok c = isLetter c || isSpace c || c == '\'' || c == '"' || c == '-'
 
 -----------------------------------------
@@ -674,11 +688,27 @@ cmdGrammar = Cmd { cmdName = ["grammar","gr"]
                  , cmdDesc = "check/show grammar with jbofihe -ie"
                  , cmdProc = proc } where
     proc text = do
-      res <- liftIO $ grammar (newCmavo text)
+      res <- liftIO $ grammar $ newCmavo text
       case res of
         Right (err,out) | out /= "" -> reply out
                         | otherwise -> reply "parse error"
         Left e -> reply (list "" head $ lines e)
+
+-- | Check some lojban grammar.
+cmdWords :: Cmd
+cmdWords = Cmd { cmdName = ["selvla"]
+               , cmdDesc = "show word types"
+               , cmdProc = proc } where
+    proc text = do
+      res <- liftIO $ valsiTypes $ newCmavo text
+      mapM_ reply $ lines res
+
+valsiTypes :: String -> IO String
+valsiTypes str = do
+  res <- run "cmafihe" str
+  case res of
+    Left error -> return error
+    Right (err,out) -> return $ intercalate "\n" [err,out]
 
 -----------------------------------------
 -- Translation
@@ -769,7 +799,7 @@ reply msg = do
   mode <- lift $ config confMode
   case mode of
     IRCBot  -> lift $ mapM_ (irc . privmsg to) $ split' msg
-    CmdLine -> liftIO $ do putStrLn (filter (/='\n') msg)
+    CmdLine -> liftIO $ do putStrLn (encodeString $ filter (/='\n') msg)
                            hFlush stdout
 
 -- | Filter all commands matching a name.
@@ -943,3 +973,27 @@ argsInc x = filter (not . badWild) $ x : words x
 
 badWild :: String -> Bool
 badWild w = all (=='*') w || (any (=='*') w && length (filter (/='*') w) < 3)
+
+-- | Proper process launching.
+run :: String -> String -> IO (Either String (String,String))
+run cmd input = do
+  pipe <- catch (Right `fmap` runInteractiveCommand ("ulimit -t 1 && " ++ cmd))
+                (const $ return $ Left "Broken pipe")
+  case pipe of
+    Right (inp,out,err,pid) -> do
+                  catch (do hSetBuffering inp NoBuffering
+                            hPutStr inp input 
+                            hClose inp
+                            errv <- newEmptyMVar
+                            outv <- newEmptyMVar
+                            output <- hGetContents out
+                            errput <- hGetContents err
+                            forkIO $ evaluate (length output) >> putMVar outv ()
+                            forkIO $ evaluate (length errput) >> putMVar errv ()
+                            takeMVar errv
+                            takeMVar outv
+                            e <- catch (waitForProcess pid)
+                                       (const $ return ExitSuccess)
+                            return $ Right (errput,output))
+                        (const $ return $ Left "Broken pipe")
+    _ -> return $ Left "Unable to launch process"
