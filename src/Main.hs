@@ -460,7 +460,7 @@ coiDoi = ["be'e","co'o","coi","fe'o","fi'i","je'e","ju'i","ke'o","ki'e"
 -- | Main command list.
 commands :: [Cmd]
 commands = [cmdSearch,cmdValsi,cmdRafsi,cmdGloss,cmdDef,cmdSelma'o
-           ,cmdTrans,cmdSelrafsi,cmdCLL,cmdVlatai,cmdLujvo,cmdGrammar,cmdCamxes
+           ,cmdTrans,cmdSelrafsi,cmdCLL,cmdVlatai,cmdLujvo,cmdGrammar,cmdWords,cmdCamxes
            ,cmdMore,cmdHelp,cmdInfo]
 
 -----------------------------------------
@@ -680,7 +680,8 @@ cmdCamxes = Cmd { cmdName = ["correct","c"]
                 , cmdProc = proc } where
     proc text = do
       valid <- lift $ isValidLojban text
-      reply $ bool ("not valid: " ++ text) ("valid: " ++ text) valid
+      types <- liftIO $ valsiTypes text
+      reply $ bool ("not grammatical: " ++ types) ("grammatical: " ++ text) valid
  
 -- | Check some lojban grammar.
 cmdGrammar :: Cmd
@@ -691,8 +692,10 @@ cmdGrammar = Cmd { cmdName = ["grammar","gr"]
       res <- liftIO $ grammar $ newCmavo text
       case res of
         Right (err,out) | out /= "" -> reply out
-                        | otherwise -> reply "parse error"
-        Left e -> reply (list "" head $ lines e)
+                        | otherwise -> do
+           types <- liftIO $ valsiTypes text
+	   list (reply "parse error") perror types
+        Left e -> reply $ list "" head $ lines e
 
 -- | Check some lojban grammar.
 cmdWords :: Cmd
@@ -722,8 +725,12 @@ cmdTrans = Cmd { cmdName = ["translate","t"]
       res <- liftIO $ translate (newCmavo text)
       case res of
         Right (err,out) | out /= "" -> reply out
-                        | otherwise -> reply "parse error"
+                        | otherwise -> do
+           types <- liftIO $ valsiTypes text
+	   list (reply "parse error") perror types
         Left e -> reply (list "" head $ lines e)
+
+perror s = reply $ "not grammatical: " ++ s
 
 -- | Display more results.
 cmdMore = Cmd { cmdName = ["more","m"]
