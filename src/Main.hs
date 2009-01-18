@@ -265,20 +265,21 @@ msgBuffer = do
 startCamxes :: Lojbot ()
 startCamxes = do
   doing "Starting camxes"
-  camxes <- liftIO $ connectCamxes
+  camxes <- liftIO $ connectProc True "camxes -t"
   modify $ \state -> state { lojbotCamxes = camxes }
   logLn (maybe "failed." (const "done.") camxes)
 
--- | Opens the java process.
-connectCamxes :: IO (Maybe Camxes)
-connectCamxes = do
-  pipe <- catch (Right <$> runInteractiveCommand "camxes -t")
+-- | Opens a process as a pipe.
+connectProc :: Bool -> String -> IO (Maybe (MVar (Handle,Handle)))
+connectProc clear name = do
+  pipe <- catch (Right <$> runInteractiveCommand name)
                 (const $ return $ Left "Broken pipe.")
   case pipe of
     Left e -> return Nothing
     Right (inp,out,err,_) -> do
-      hSetBuffering inp LineBuffering
-      hGetLine out
+      hSetBuffering inp NoBuffering
+      hSetBuffering inp NoBuffering
+      when clear $ hGetLine out >> return ()
       var <- newMVar (inp,out)
       return $ Just var
 
@@ -460,8 +461,8 @@ coiDoi = ["be'e","co'o","coi","fe'o","fi'i","je'e","ju'i","ke'o","ki'e"
 -- | Main command list.
 commands :: [Cmd]
 commands = [cmdSearch,cmdValsi,cmdRafsi,cmdGloss,cmdDef,cmdSelma'o
-           ,cmdTrans,cmdSelrafsi,cmdCLL,cmdVlatai,cmdLujvo,cmdGrammar,cmdWords,cmdCamxes
-           ,cmdMore,cmdHelp,cmdInfo]
+           ,cmdTrans,cmdSelrafsi,cmdCLL,cmdJv,cmdLujvo,cmdGrammar
+           ,cmdVlatai,cmdWords,cmdCamxes,cmdMore,cmdHelp,cmdInfo]
 
 -----------------------------------------
 -- Lookup utilities
@@ -476,14 +477,40 @@ cmdLujvo = Cmd { cmdName = ["lujvo","l"]
         [] -> reply $ "invalid lujvo: " ++ string
         xs -> replies $ map showValsi xs
 
+cmdVlatai :: Cmd
+cmdVlatai = Cmd { cmdName = ["vlatai","vl"]
+                , cmdDesc = "lookup a word in vlatai"
+                , cmdProc = proc } where
+    proc string = do
+      type' <- vlataiType string
+      case type' of
+        Right wtype -> reply $ string ++ ": " ++ wtype
+        Left e -> reply $ string ++ ": " ++ e
+
+vlataiType :: String -> LojbotAction (Either String String)
+vlataiType w = do
+  out <- lift $ vlataiWord w
+  case out of
+    Left e     -> return $ Left e
+    Right line ->
+        case match ".*: (.*) :.*" line of
+          Just ["UNMATCHED"] -> return $ Left "invalid valsi"
+          Just [type']       -> return $ Right type'
+          Nothing            -> return $ Left "vlatai error"
+
 lujvoLookup :: String -> LojbotAction [JboValsi]
 lujvoLookup string = do
   let word = list "" head $ words string
-  case rafsis word of 
-    [] -> return []
-    rs -> do selrafs <- map head . filter (/=[]) <$> mapM rafsiLookup rs
-             valsi <- makeLujvo' word rs selrafs
-             return $ valsi : selrafs
+  res <- vlataiType word
+  case res of
+    Right "lujvo" -> 
+        case rafsis word of 
+          [] -> return []
+          rs -> do selrafs <- getSelRafs rs
+                   valsi <- makeLujvo' word rs selrafs
+                   return $ valsi : selrafs
+    _ -> return []
+  where getSelRafs = fmap (map head . filter (/=[])) . mapM rafsiLookup
 
 makeLujvo' :: String -> [String] -> [JboValsi] -> LojbotAction JboValsi
 makeLujvo' word rafsis selrafsis = do
@@ -498,13 +525,16 @@ cmdInfo = Cmd { cmdName = ["info","about"]
               , cmdProc = proc } where
     proc _ = do
       reply $ "Lojbot is written by Chris Done, in Haskell. \
-              \Source code here: http://github.com/chrisdone/lojbot/tree/master and \
-              \Support page here: http://chrisdone.lighthouseapp.com/projects/22016-lojbot/overview"
+              \Source code here: http://github.com/chrisdone/lojbot\
+              \/tree/master and \
+              \Support page here: http://chrisdone.lighthouseapp.com\
+              \/projects/22016-lojbot/overview"
 
 -- | Really generic search using the existing searches, prioritised.
 cmdSearch :: Cmd
 cmdSearch = Cmd { cmdName = ["search","query","q"]
-                , cmdDesc = "really generic search using the others, prioritised: v -> r -> g -> d"
+                , cmdDesc = "really generic search using the others,\
+                             \prioritised: v -> r -> g -> d"
                 , cmdProc = proc } where
     proc string = do
       valsi <- valsiLookup string
@@ -513,11 +543,13 @@ cmdSearch = Cmd { cmdName = ["search","query","q"]
       def   <- defLookup string
       lujvo <- lujvoLookup string
       selma'o <- if (any isUpper string) 
-                 then selma'oLookup string 
-                 else return []
+                    then selma'oLookup string 
+                    else return []
       let results = nub $ valsi ++ rafsi ++ gloss ++ def ++ selma'o ++ lujvo
+          word = list "" head $ words string
       case results of
-        [] -> reply $ "no results for: " ++ string
+        [] -> do ty <- either parens parens <$> vlataiType string
+                 reply $ "no results for: " ++ word ++ " " ++ ty
         xs -> replies (map showValsi xs)
 
 -- | Lookup a word from its gloss.
@@ -574,8 +606,8 @@ cmdSelrafsi = Cmd { cmdName = ["selrafsi","sr"]
     showLujvo v = valsiWord v ++ list "" ((" "++) . parens . head) (valsiGloss v)
 
 -- | Create a lujvo with jvocuhadju.
-cmdVlatai :: Cmd
-cmdVlatai = Cmd { cmdName = ["jvocuhadju","jv"]
+cmdJv :: Cmd
+cmdJv = Cmd { cmdName = ["jvocuhadju","jv"]
                , cmdDesc = "construct lujvos from selrafsis and rate them"
                , cmdProc = proc } where
     proc text = do
@@ -596,7 +628,6 @@ cmdDef = Cmd { cmdName = ["definition","d"]
         []     -> reply $ "no results for: " ++ string
         valsis -> replies $ map showValsi $ sort valsis
 
-
 defLookup :: String -> LojbotAction [JboValsi]
 defLookup string = do
   db <- lift $ gets lojbotJboDB
@@ -613,8 +644,10 @@ cmdValsi = Cmd
   , cmdProc = proc } where
     proc string = do 
       res <- valsiLookup string
+      let word = list "" head $ words string
       case res of
-        [] -> reply $ "no results for: " ++ string
+        [] -> do ty <- either parens parens <$> vlataiType word
+                 reply $ "no results for: " ++ string ++ " " ++ ty
         xs -> instReplies (length (words string)) $ map showValsi xs
 
 valsiLookup :: String -> LojbotAction [JboValsi]
@@ -699,7 +732,7 @@ cmdGrammar = Cmd { cmdName = ["grammar","gr"]
 
 -- | Check some lojban grammar.
 cmdWords :: Cmd
-cmdWords = Cmd { cmdName = ["selvla"]
+cmdWords = Cmd { cmdName = ["selvla","sl"]
                , cmdDesc = "show word types"
                , cmdProc = proc } where
     proc text = do
@@ -708,10 +741,10 @@ cmdWords = Cmd { cmdName = ["selvla"]
 
 valsiTypes :: String -> IO String
 valsiTypes str = do
-  res <- run "cmafihe" str
-  case res of
-    Left error -> return error
-    Right (err,out) -> return $ intercalate "\n" [err,out]
+  (code,out,err) <- readProc "cmafihe" [] str
+  case code of
+    ExitSuccess -> return $ intercalate "\n" [err,out]
+    _           -> return $ "Unable to launch cmafihe"
 
 -----------------------------------------
 -- Translation
@@ -893,6 +926,14 @@ data LogH = LogStdout      -- ^ Just use stdout to log
 ------------------------------------------------------------------------------
 -- General utilties
 
+-- | Use vlatai to validate a word.
+vlataiWord :: String -> Lojbot (Either String String)
+vlataiWord word = do
+  (code,out,err) <- liftIO $ readProc "vlatai" [word] ""
+  case code of
+    ExitSuccess -> return $ Right out
+    _           -> return $ Left "Failued to run vlatai."
+
 -- | Is some text valid according to camxes?
 isValidLojban :: String -> Lojbot Bool
 isValidLojban line = do
@@ -981,26 +1022,5 @@ argsInc x = filter (not . badWild) $ x : words x
 badWild :: String -> Bool
 badWild w = all (=='*') w || (any (=='*') w && length (filter (/='*') w) < 3)
 
--- | Proper process launching.
-run :: String -> String -> IO (Either String (String,String))
-run cmd input = do
-  pipe <- catch (Right `fmap` runInteractiveCommand ("ulimit -t 1 && " ++ cmd))
-                (const $ return $ Left "Broken pipe")
-  case pipe of
-    Right (inp,out,err,pid) -> do
-                  catch (do hSetBuffering inp NoBuffering
-                            hPutStr inp input 
-                            hClose inp
-                            errv <- newEmptyMVar
-                            outv <- newEmptyMVar
-                            output <- hGetContents out
-                            errput <- hGetContents err
-                            forkIO $ evaluate (length output) >> putMVar outv ()
-                            forkIO $ evaluate (length errput) >> putMVar errv ()
-                            takeMVar errv
-                            takeMVar outv
-                            e <- catch (waitForProcess pid)
-                                       (const $ return ExitSuccess)
-                            return $ Right (errput,output))
-                        (const $ return $ Left "Broken pipe")
-    _ -> return $ Left "Unable to launch process"
+readProc name args input =
+    readProcessWithExitCode name args (list "" (++"\n") input)
