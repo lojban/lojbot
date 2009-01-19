@@ -666,10 +666,15 @@ cmdSelma'o = Cmd { cmdName = ["selma'o","s"]
     proc selma'o = do
       res <- selma'oLookup selma'o
       case res of
-        [] -> reply "no such selma'o"
+        [] -> do v <- valsiLookup selma'o
+                 case v of
+                   (x:xs) | isJust s -> maybe (return ()) proc s
+                          where s = valsiSelma'o x
+                   []     -> reply $ "no selma'o results for " ++ selma'o
         xs -> replies $ split' (commas list) ++ (map showValsi xs)
             where list = map showCmavo xs
-                  showCmavo w = "{" ++ valsiWord w ++ "}: " ++ (slashes $ valsiGloss w)
+                  showCmavo w = "{" ++ valsiWord w ++ "}: " 
+                                ++ (slashes $ valsiGloss w)
 
 selma'oLookup :: String -> LojbotAction [JboValsi]        
 selma'oLookup selma'o = do
