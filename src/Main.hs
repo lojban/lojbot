@@ -572,7 +572,7 @@ glossLookup gloss = do
                     ,isPrefixOf g,isPrefixOf g . lower -- prefix
                     ,isInfixOf g,isInfixOf g . lower]  -- infix
           search = nub . (find =<<) . (tries =<<) . argsInc 
-      return $ search gloss
+      return $ sort $ search gloss
 
 -- | Lookup a gismu/cmavo with the given rafsi.
 cmdRafsi :: Cmd
