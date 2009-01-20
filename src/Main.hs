@@ -290,9 +290,11 @@ connectProc clear name = do
 readCmdLines :: Lojbot ()
 readCmdLines = do
   maybeLine <- liftIO $ readline "> "
+  let finish = do mli <- gets lojbotMlismu
+                  liftIO $ closeMlismu mli
   case maybeLine of 
-    Nothing               -> return () 
-    Just line | end       -> return ()
+    Nothing               -> finish
+    Just line | end       -> finish
               | otherwise -> do liftIO $ addHistory line
                                 handleCmdLine line
                                 readCmdLines
