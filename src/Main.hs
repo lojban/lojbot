@@ -545,12 +545,12 @@ cmdSearch = Cmd { cmdName = ["search","query","q"]
       selma'o <- if (any isUpper string) 
                     then selma'oLookup string 
                     else return []
-      let results = nub $ valsi ++ rafsi ++ gloss ++ def ++ selma'o ++ lujvo
+      let results = nub $ concat [valsi,rafsi,gloss,def,selma'o,lujvo]
           word = list "" head $ words string
       case results of
         [] -> do ty <- either parens parens <$> vlataiType string
                  reply $ "no results for: " ++ word ++ " " ++ ty
-        xs -> replies (map showValsi xs)
+        xs -> replies $ map showValsi xs
 
 -- | Lookup a word from its gloss.
 cmdGloss :: Cmd
@@ -566,13 +566,13 @@ cmdGloss = Cmd { cmdName = ["gloss","g"]
 glossLookup :: String -> LojbotAction [JboValsi]
 glossLookup gloss = do
       db <- lift $ gets lojbotJboDB
-      let find f = filterValsi db $ any f . valsiGloss
+      let find f = sort $ filterValsi db $ any f . valsiGloss
           tries g = [wild g,wild g . lower             -- wildcard
                     ,(==g),(==g) . lower               -- full
                     ,isPrefixOf g,isPrefixOf g . lower -- prefix
                     ,isInfixOf g,isInfixOf g . lower]  -- infix
           search = nub . (find =<<) . (tries =<<) . argsInc 
-      return $ sort $ search gloss
+      return $ search gloss
 
 -- | Lookup a gismu/cmavo with the given rafsi.
 cmdRafsi :: Cmd
